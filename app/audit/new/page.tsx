@@ -81,7 +81,7 @@ export default function NewAuditPage() {
       }
 
       setMessage("Audit complete. Email sent successfully.");
-      router.push(`/audit/${auditId}`);
+      router.push(`/audit/submitted?id=${auditId}`);
     } catch (error) {
       console.error(error);
       setMessage(
