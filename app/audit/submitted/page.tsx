@@ -1,9 +1,10 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-export default function AuditSubmittedPage() {
+function SubmittedContent() {
   const searchParams = useSearchParams();
   const id = searchParams.get("id");
 
@@ -67,8 +68,7 @@ export default function AuditSubmittedPage() {
           }}
         >
           We’re scanning the website and preparing your report now. This usually
-          takes less than a minute. A report link has been generated and can
-          also be sent by email.
+          takes less than a minute.
         </p>
 
         <div
@@ -145,5 +145,79 @@ export default function AuditSubmittedPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+function SubmittedFallback() {
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "760px",
+          border: "1px solid #1f2937",
+          borderRadius: "24px",
+          padding: "40px 32px",
+          background: "rgba(15,23,42,0.82)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.35)",
+        }}
+      >
+        <div
+          style={{
+            color: "#38bdf8",
+            fontSize: "13px",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: "12px",
+            fontWeight: 700,
+          }}
+        >
+          Scaptra Audit
+        </div>
+
+        <h1
+          style={{
+            margin: "0 0 14px",
+            color: "#f8fafc",
+            fontSize: "38px",
+            lineHeight: 1.15,
+          }}
+        >
+          Preparing your next step
+        </h1>
+
+        <p
+          style={{
+            color: "#cbd5e1",
+            fontSize: "17px",
+            lineHeight: 1.7,
+            marginBottom: "24px",
+          }}
+        >
+          Just a moment while we prepare your audit flow.
+        </p>
+      </div>
+    </main>
+  );
+}
+
+export default function AuditSubmittedPage() {
+  return (
+    <Suspense fallback={<SubmittedFallback />}>
+      <SubmittedContent />
+    </Suspense>
   );
 }
