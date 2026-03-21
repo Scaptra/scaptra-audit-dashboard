@@ -48,6 +48,146 @@ type Finding = {
   finding_context: string;
 };
 
+function LoadingScreen() {
+  const messages = [
+    "Scanning website structure...",
+    "Checking lead capture signals...",
+    "Reviewing contact and booking paths...",
+    "Calculating response readiness...",
+    "Finalising your audit report...",
+  ];
+
+  const [messageIndex, setMessageIndex] = useState(0);
+  const [seconds, setSeconds] = useState(0);
+
+  useEffect(() => {
+    const msgInterval = setInterval(() => {
+      setMessageIndex((prev) => (prev + 1) % messages.length);
+    }, 2500);
+
+    const timer = setInterval(() => {
+      setSeconds((s) => s + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(msgInterval);
+      clearInterval(timer);
+    };
+  }, []);
+
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
+        color: "#fff",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+        fontFamily:
+          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: "720px",
+          border: "1px solid #1f2937",
+          borderRadius: "24px",
+          padding: "36px",
+          background: "rgba(15,23,42,0.85)",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
+        }}
+      >
+        <div
+          style={{
+            color: "#38bdf8",
+            fontSize: "13px",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            marginBottom: "12px",
+            fontWeight: 700,
+          }}
+        >
+          Scaptra Audit
+        </div>
+
+        <h1
+          style={{
+            margin: "0 0 14px",
+            fontSize: "36px",
+            fontWeight: 800,
+          }}
+        >
+          Building your audit report
+        </h1>
+
+        <p
+          style={{
+            marginBottom: "20px",
+            color: "#cbd5e1",
+            fontSize: "17px",
+          }}
+        >
+          {messages[messageIndex]}
+        </p>
+
+        <div
+          style={{
+            height: "10px",
+            background: "#111827",
+            borderRadius: "999px",
+            overflow: "hidden",
+            marginBottom: "16px",
+          }}
+        >
+          <div
+            style={{
+              width: "40%",
+              height: "100%",
+              background: "linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)",
+              animation: "loadingMove 1.4s ease-in-out infinite",
+            }}
+          />
+        </div>
+
+        <p style={{ color: "#64748b", fontSize: "14px" }}>
+          This usually takes 10–30 seconds.
+          {seconds > 20 && " Still working — some sites take longer."}
+        </p>
+
+        {seconds > 35 && (
+          <div
+            style={{
+              marginTop: "18px",
+              padding: "14px",
+              borderRadius: "12px",
+              background: "rgba(30,41,59,0.8)",
+              border: "1px solid #334155",
+              fontSize: "14px",
+              color: "#cbd5e1",
+              lineHeight: 1.6,
+            }}
+          >
+            This audit is taking longer than usual. Your report link has been
+            emailed — you can return shortly.
+          </div>
+        )}
+
+        <style>{`
+          @keyframes loadingMove {
+            0% { transform: translateX(-30%); opacity: 0.7; }
+            50% { transform: translateX(80%); opacity: 1; }
+            100% { transform: translateX(180%); opacity: 0.7; }
+          }
+        `}</style>
+      </div>
+    </main>
+  );
+}
+
 function SectionCard({
   title,
   subtitle,
@@ -572,23 +712,7 @@ export default function AuditPage() {
   }, [summary, bookingFindings.length]);
 
   if (loading) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background:
-            "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
-          color: "#fff",
-          padding: "32px 24px 80px",
-          fontFamily:
-            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        }}
-      >
-        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-          <h1 style={{ color: "#f8fafc" }}>Loading audit report...</h1>
-        </div>
-      </main>
-    );
+    return <LoadingScreen />;
   }
 
   if (errorMessage) {
@@ -1302,108 +1426,108 @@ export default function AuditPage() {
         <div style={{ height: "24px" }} />
 
         <div
-  style={{
-    border: "1px solid #1f2937",
-    borderRadius: "24px",
-    padding: "32px",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
-    boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
-  }}
->
-  <div
-    style={{
-      color: "#38bdf8",
-      fontSize: "13px",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: "10px",
-      fontWeight: 700,
-    }}
-  >
-    Next Step
-  </div>
+          style={{
+            border: "1px solid #1f2937",
+            borderRadius: "24px",
+            padding: "32px",
+            background:
+              "linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
+            boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
+          }}
+        >
+          <div
+            style={{
+              color: "#38bdf8",
+              fontSize: "13px",
+              textTransform: "uppercase",
+              letterSpacing: "0.08em",
+              marginBottom: "10px",
+              fontWeight: 700,
+            }}
+          >
+            Next Step
+          </div>
 
-  <h2
-    style={{
-      margin: "0 0 12px",
-      color: "#f8fafc",
-      fontSize: "30px",
-      lineHeight: 1.2,
-    }}
-  >
-    Stop losing enquiries and fix the gaps
-  </h2>
+          <h2
+            style={{
+              margin: "0 0 12px",
+              color: "#f8fafc",
+              fontSize: "30px",
+              lineHeight: 1.2,
+            }}
+          >
+            Stop losing enquiries and fix the gaps
+          </h2>
 
-  <p
-    style={{
-      color: "#cbd5e1",
-      lineHeight: 1.7,
-      maxWidth: "860px",
-      fontSize: "15px",
-      marginBottom: "20px",
-    }}
-  >
-    This audit highlights where enquiries are being missed, where response
-    speed breaks down, and where automation can recover lost opportunities.
-    Most businesses don’t need more leads — they need better systems to
-    handle the ones they already have.
-  </p>
+          <p
+            style={{
+              color: "#cbd5e1",
+              lineHeight: 1.7,
+              maxWidth: "860px",
+              fontSize: "15px",
+              marginBottom: "20px",
+            }}
+          >
+            This audit highlights where enquiries are being missed, where response
+            speed breaks down, and where automation can recover lost opportunities.
+            Most businesses don’t need more leads — they need better systems to
+            handle the ones they already have.
+          </p>
 
-  <div
-    style={{
-      display: "flex",
-      gap: "14px",
-      flexWrap: "wrap",
-      alignItems: "center",
-    }}
-  >
-    <a
-      href="mailto:support@scaptra.ai?subject=Audit Follow Up"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "14px",
-        padding: "14px 22px",
-        background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
-        color: "#020617",
-        fontWeight: 800,
-        textDecoration: "none",
-        fontSize: "14px",
-      }}
-    >
-      Book a Strategy Call
-    </a>
+          <div
+            style={{
+              display: "flex",
+              gap: "14px",
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <a
+              href="mailto:support@scaptra.ai?subject=Audit Follow Up"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "14px",
+                padding: "14px 22px",
+                background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
+                color: "#020617",
+                fontWeight: 800,
+                textDecoration: "none",
+                fontSize: "14px",
+              }}
+            >
+              Book a Strategy Call
+            </a>
 
-    <a
-      href="mailto:support@scaptra.ai"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "14px",
-        padding: "14px 22px",
-        border: "1px solid #334155",
-        color: "#e2e8f0",
-        textDecoration: "none",
-        fontWeight: 600,
-        fontSize: "14px",
-      }}
-    >
-      Email Support
-    </a>
+            <a
+              href="mailto:support@scaptra.ai"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                borderRadius: "14px",
+                padding: "14px 22px",
+                border: "1px solid #334155",
+                color: "#e2e8f0",
+                textDecoration: "none",
+                fontWeight: 600,
+                fontSize: "14px",
+              }}
+            >
+              Email Support
+            </a>
 
-    <div
-      style={{
-        color: "#64748b",
-        fontSize: "13px",
-      }}
-    >
-      No pressure — just clarity on what to fix first
-    </div>
-  </div>
-</div>
+            <div
+              style={{
+                color: "#64748b",
+                fontSize: "13px",
+              }}
+            >
+              No pressure — just clarity on what to fix first
+            </div>
+          </div>
+        </div>
       </div>
     </main>
   );
