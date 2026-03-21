@@ -1425,211 +1425,6 @@ export default function AuditPage() {
 
         <div style={{ height: "24px" }} />
 
-<div style={{ height: "24px" }} />
-
-<div
-  style={{
-    border: "1px solid #1f2937",
-    borderRadius: "24px",
-    padding: "32px",
-    background:
-      "linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
-    boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
-  }}
->
-  <div
-    style={{
-      color: "#38bdf8",
-      fontSize: "13px",
-      textTransform: "uppercase",
-      letterSpacing: "0.08em",
-      marginBottom: "10px",
-      fontWeight: 700,
-    }}
-  >
-    Recommended Next Step
-  </div>
-
-  <h2
-    style={{
-      margin: "0 0 12px",
-      color: "#f8fafc",
-      fontSize: "30px",
-      lineHeight: 1.2,
-    }}
-  >
-    Stop losing enquiries and fix the gaps
-  </h2>
-
-  <p
-    style={{
-      color: "#cbd5e1",
-      lineHeight: 1.7,
-      maxWidth: "860px",
-      fontSize: "15px",
-      marginBottom: "20px",
-    }}
-  >
-    This audit highlights where enquiries are being missed, where response
-    speed breaks down, and where automation can recover lost opportunities.
-    Most businesses don’t need more leads — they need better systems to
-    handle the ones they already have.
-  </p>
-
-  <div
-    style={{
-      display: "grid",
-      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-      gap: "14px",
-      marginBottom: "22px",
-    }}
-  >
-    <div
-      style={{
-        border: "1px solid rgba(51,65,85,0.85)",
-        borderRadius: "16px",
-        padding: "16px",
-        background: "rgba(15,23,42,0.6)",
-      }}
-    >
-      <div
-        style={{
-          color: "#f8fafc",
-          fontWeight: 700,
-          marginBottom: "8px",
-          fontSize: "15px",
-        }}
-      >
-        Lead handling gaps
-      </div>
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: "14px",
-          lineHeight: 1.6,
-        }}
-      >
-        Missed forms, weak calls to action, and poor response structure can
-        quietly reduce conversions.
-      </div>
-    </div>
-
-    <div
-      style={{
-        border: "1px solid rgba(51,65,85,0.85)",
-        borderRadius: "16px",
-        padding: "16px",
-        background: "rgba(15,23,42,0.6)",
-      }}
-    >
-      <div
-        style={{
-          color: "#f8fafc",
-          fontWeight: 700,
-          marginBottom: "8px",
-          fontSize: "15px",
-        }}
-      >
-        Automation opportunity
-      </div>
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: "14px",
-          lineHeight: 1.6,
-        }}
-      >
-        Faster first response, CRM follow-up, and AI-assisted handling can
-        recover revenue already slipping through the cracks.
-      </div>
-    </div>
-
-    <div
-      style={{
-        border: "1px solid rgba(51,65,85,0.85)",
-        borderRadius: "16px",
-        padding: "16px",
-        background: "rgba(15,23,42,0.6)",
-      }}
-    >
-      <div
-        style={{
-          color: "#f8fafc",
-          fontWeight: 700,
-          marginBottom: "8px",
-          fontSize: "15px",
-        }}
-      >
-        Clear next action
-      </div>
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: "14px",
-          lineHeight: 1.6,
-        }}
-      >
-        The fastest next move is to identify the highest-impact fixes and build
-        a simple follow-up system around them.
-      </div>
-    </div>
-  </div>
-
-  <div
-    style={{
-      display: "flex",
-      gap: "14px",
-      flexWrap: "wrap",
-      alignItems: "center",
-    }}
-  >
-    <a
-      href="mailto:support@scaptra.ai?subject=Audit Follow Up"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "14px",
-        padding: "14px 22px",
-        background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
-        color: "#020617",
-        fontWeight: 800,
-        textDecoration: "none",
-        fontSize: "14px",
-      }}
-    >
-      Book a Strategy Call
-    </a>
-
-    <a
-      href="mailto:support@scaptra.ai"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        borderRadius: "14px",
-        padding: "14px 22px",
-        border: "1px solid #334155",
-        color: "#e2e8f0",
-        textDecoration: "none",
-        fontWeight: 600,
-        fontSize: "14px",
-      }}
-    >
-      Email Support
-    </a>
-
-    <div
-      style={{
-        color: "#64748b",
-        fontSize: "13px",
-      }}
-    >
-      No pressure — just clarity on what to fix first
-    </div>
-  </div>
-</div>
-
         <div
           style={{
             border: "1px solid #1f2937",
@@ -1650,7 +1445,7 @@ export default function AuditPage() {
               fontWeight: 700,
             }}
           >
-            Next Step
+            Recommended Next Step
           </div>
 
           <h2
@@ -1678,6 +1473,105 @@ export default function AuditPage() {
             Most businesses don’t need more leads — they need better systems to
             handle the ones they already have.
           </p>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: "14px",
+              marginBottom: "22px",
+            }}
+          >
+            <div
+              style={{
+                border: "1px solid rgba(51,65,85,0.85)",
+                borderRadius: "16px",
+                padding: "16px",
+                background: "rgba(15,23,42,0.6)",
+              }}
+            >
+              <div
+                style={{
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  fontSize: "15px",
+                }}
+              >
+                Lead handling gaps
+              </div>
+              <div
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                }}
+              >
+                Missed forms, weak calls to action, and poor response structure can
+                quietly reduce conversions.
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(51,65,85,0.85)",
+                borderRadius: "16px",
+                padding: "16px",
+                background: "rgba(15,23,42,0.6)",
+              }}
+            >
+              <div
+                style={{
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  fontSize: "15px",
+                }}
+              >
+                Automation opportunity
+              </div>
+              <div
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                }}
+              >
+                Faster first response, CRM follow-up, and AI-assisted handling can
+                recover revenue already slipping through the cracks.
+              </div>
+            </div>
+
+            <div
+              style={{
+                border: "1px solid rgba(51,65,85,0.85)",
+                borderRadius: "16px",
+                padding: "16px",
+                background: "rgba(15,23,42,0.6)",
+              }}
+            >
+              <div
+                style={{
+                  color: "#f8fafc",
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  fontSize: "15px",
+                }}
+              >
+                Clear next action
+              </div>
+              <div
+                style={{
+                  color: "#94a3b8",
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                }}
+              >
+                The fastest next move is to identify the highest-impact fixes and build
+                a simple follow-up system around them.
+              </div>
+            </div>
+          </div>
 
           <div
             style={{
