@@ -518,6 +518,59 @@ export default function AuditPage() {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (!id || loading || errorMessage) return;
+
+    const viewedKey = `audit_report_viewed_${id}`;
+    const alreadyTracked =
+      typeof window !== "undefined" &&
+      sessionStorage.getItem(viewedKey) === "true";
+
+    if (alreadyTracked) return;
+
+    const trackView = async () => {
+      try {
+        await fetch("/api/audit-events", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          keepalive: true,
+          body: JSON.stringify({
+            auditId: id,
+            eventType: "report_viewed",
+            eventValue: window.location.pathname,
+          }),
+        });
+
+        sessionStorage.setItem(viewedKey, "true");
+      } catch (error) {
+        console.error("Failed to track report view:", error);
+      }
+    };
+
+    void trackView();
+  }, [id, loading, errorMessage]);
+
+  async function trackCtaClick(eventValue: string) {
+    try {
+      await fetch("/api/audit-events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        keepalive: true,
+        body: JSON.stringify({
+          auditId: id,
+          eventType: "cta_clicked",
+          eventValue,
+        }),
+      });
+    } catch (error) {
+      console.error("Failed to track CTA click:", error);
+    }
+  }
+
   const findingsByPageId = useMemo(() => {
     const map = new Map<string, Finding[]>();
 
@@ -1581,8 +1634,24 @@ export default function AuditPage() {
               alignItems: "center",
             }}
           >
-            <a
-              href="mailto:support@scaptra.ai?subject=Audit Follow Up"
+            <button
+              type="button"
+              onClick={async () => {
+                const bookingWindow = window.open("", "_blank", "noopener,noreferrer");
+
+                await trackCtaClick("book_strategy_call");
+
+                if (bookingWindow) {
+                  bookingWindow.location.href =
+                    "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN";
+                } else {
+                  window.open(
+                    "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN",
+                    "_blank",
+                    "noopener,noreferrer"
+                  );
+                }
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -1594,13 +1663,18 @@ export default function AuditPage() {
                 fontWeight: 800,
                 textDecoration: "none",
                 fontSize: "14px",
+                border: "none",
+                cursor: "pointer",
               }}
             >
               Book a Strategy Call
-            </a>
+            </button>
 
             <a
               href="mailto:support@scaptra.ai"
+              onClick={() => {
+                void trackCtaClick("email_support");
+              }}
               style={{
                 display: "inline-flex",
                 alignItems: "center",
