@@ -1627,79 +1627,120 @@ export default function AuditPage() {
           </div>
 
           <div
-            style={{
-              display: "flex",
-              gap: "14px",
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <button
-              type="button"
-              onClick={async () => {
-                const bookingWindow = window.open("", "_blank", "noopener,noreferrer");
+  style={{
+    display: "flex",
+    gap: "14px",
+    flexWrap: "wrap",
+    alignItems: "center",
+  }}
+>
+  <button
+    type="button"
+    onClick={async () => {
+      const bookingWindow = window.open("", "_blank", "noopener,noreferrer");
 
-                await trackCtaClick("book_strategy_call");
+      await trackCtaClick("book_strategy_call");
 
-                if (bookingWindow) {
-                  bookingWindow.location.href =
-                    "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN";
-                } else {
-                  window.open(
-                    "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN",
-                    "_blank",
-                    "noopener,noreferrer"
-                  );
-                }
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "14px",
-                padding: "14px 22px",
-                background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
-                color: "#020617",
-                fontWeight: 800,
-                textDecoration: "none",
-                fontSize: "14px",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Book a Strategy Call
-            </button>
+      if (bookingWindow) {
+        bookingWindow.location.href =
+          "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN";
+      } else {
+        window.open(
+          "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN",
+          "_blank",
+          "noopener,noreferrer"
+        );
+      }
+    }}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "14px",
+      padding: "14px 22px",
+      background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
+      color: "#020617",
+      fontWeight: 800,
+      textDecoration: "none",
+      fontSize: "14px",
+      border: "none",
+      cursor: "pointer",
+    }}
+  >
+    Book a Strategy Call
+  </button>
 
-            <a
-              href="mailto:support@scaptra.ai"
-              onClick={() => {
-                void trackCtaClick("email_support");
-              }}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                borderRadius: "14px",
-                padding: "14px 22px",
-                border: "1px solid #334155",
-                color: "#e2e8f0",
-                textDecoration: "none",
-                fontWeight: 600,
-                fontSize: "14px",
-              }}
-            >
-              Email Support
-            </a>
+  <a
+    href="mailto:support@scaptra.ai"
+    onClick={() => {
+      void trackCtaClick("email_support");
+    }}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "14px",
+      padding: "14px 22px",
+      border: "1px solid #334155",
+      color: "#e2e8f0",
+      textDecoration: "none",
+      fontWeight: 600,
+      fontSize: "14px",
+    }}
+  >
+    Email Support
+  </a>
 
-            <div
-              style={{
-                color: "#64748b",
-                fontSize: "13px",
-              }}
-            >
-              No pressure — just clarity on what to fix first
-            </div>
-          </div>
+  <button
+    type="button"
+    onClick={async () => {
+      alert("tracking button clicked");
+
+      try {
+        const res = await fetch("/api/audit-events", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            auditId: id,
+            eventType: "manual_test",
+            eventValue: "button_test",
+          }),
+        });
+
+        const text = await res.text();
+        alert(`status: ${res.status} | body: ${text}`);
+      } catch (err) {
+        alert(`fetch failed: ${String(err)}`);
+      }
+    }}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      borderRadius: "14px",
+      padding: "14px 22px",
+      border: "1px solid #334155",
+      background: "#111827",
+      color: "#ffffff",
+      fontWeight: 600,
+      fontSize: "14px",
+      cursor: "pointer",
+    }}
+  >
+    Test Tracking
+  </button>
+
+  <div
+    style={{
+      color: "#64748b",
+      fontSize: "13px",
+    }}
+  >
+    No pressure — just clarity on what to fix first
+  </div>
+</div>
         </div>
       </div>
     </main>
