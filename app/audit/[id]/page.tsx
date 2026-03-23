@@ -1691,47 +1691,6 @@ export default function AuditPage() {
     Email Support
   </a>
 
-  <button
-    type="button"
-    onClick={async () => {
-      alert("tracking button clicked");
-
-      try {
-        const res = await fetch("/api/audit-events", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            auditId: id,
-            eventType: "manual_test",
-            eventValue: "button_test",
-          }),
-        });
-
-        const text = await res.text();
-        alert(`status: ${res.status} | body: ${text}`);
-      } catch (err) {
-        alert(`fetch failed: ${String(err)}`);
-      }
-    }}
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: "14px",
-      padding: "14px 22px",
-      border: "1px solid #334155",
-      background: "#111827",
-      color: "#ffffff",
-      fontWeight: 600,
-      fontSize: "14px",
-      cursor: "pointer",
-    }}
-  >
-    Test Tracking
-  </button>
-
   <div
     style={{
       color: "#64748b",
