@@ -1,824 +1,243 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-type AuditSubmission = {
+type AuditRow = {
   id: string;
-  business_id: string;
-  status: string | null;
+  submission_id: string | null;
+  executive_summary: string | null;
+  engagement_flow_map: string | null;
+  lead_leakage_summary: string | null;
+  automation_opportunity_matrix:
+    | Record<string, string>
+    | Record<string, { title?: string; description?: string; impact?: string }>
+    | null;
+  implementation_blueprint: string | null;
+  detected_stack: Record<string, string> | null;
+  created_at: string;
 };
 
-type Business = {
-  id: string;
-  business_name: string | null;
-  website: string | null;
-};
+function getScoreLabel(score: number) {
+  if (score >= 85) return "Strong";
+  if (score >= 70) return "Good";
+  if (score >= 50) return "Needs Work";
+  return "High Risk";
+}
 
-type AuditScore = {
-  id: string;
-  submission_id: string;
-  lead_capture_score: number | null;
-  response_efficiency_score: number | null;
-  crm_data_score: number | null;
-  automation_score: number | null;
-  ai_readiness_score: number | null;
-  total_score: number | null;
-  scoring_notes: any;
-};
+function getScoreMessage(score: number) {
+  if (score >= 85) {
+    return "Your enquiry flow is in good shape, but there is still room to tighten conversion.";
+  }
+  if (score >= 70) {
+    return "The fundamentals are there, but some gaps are likely costing you leads.";
+  }
+  if (score >= 50) {
+    return "There are clear weaknesses in the way enquiries are handled and converted.";
+  }
+  return "Revenue is likely leaking through multiple points in the enquiry journey.";
+}
 
-type ScanPage = {
-  id: string;
-  page_url: string;
-  page_title: string | null;
-  http_status: number | null;
-};
+function getPriorityFromScore(score: number) {
+  if (score >= 85) return "Low";
+  if (score >= 70) return "Moderate";
+  if (score >= 50) return "High";
+  return "Urgent";
+}
 
-type Finding = {
-  id: string;
-  page_id: string;
-  finding_type: string;
-  finding_value: string;
-  finding_context: string;
-};
+function scoreRingStyle(score: number): React.CSSProperties {
+  const degrees = Math.max(0, Math.min(100, score)) * 3.6;
+  return {
+    background: `conic-gradient(#38bdf8 ${degrees}deg, rgba(255,255,255,0.08) ${degrees}deg)`,
+  };
+}
 
-function LoadingScreen() {
-  const messages = [
-    "Scanning website structure...",
-    "Checking lead capture signals...",
-    "Reviewing contact and booking paths...",
-    "Calculating response readiness...",
-    "Finalising your audit report...",
+function formatDate(input: string) {
+  return new Intl.DateTimeFormat("en-AU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(input));
+}
+
+function toParagraphs(value: string | null | undefined, fallbacks: string[]) {
+  if (!value || !value.trim()) return fallbacks;
+
+  return value
+    .split(/\n{2,}|•|-|\d+\./)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function toOpportunityList(
+  value: AuditRow["automation_opportunity_matrix"]
+): string[] {
+  if (!value || typeof value !== "object") {
+    return [
+      "Automation opportunities were detected, but no readable items were available.",
+    ];
+  }
+
+  const items = Object.values(value)
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (!entry || typeof entry !== "object") return "";
+
+      const parts = [entry.title, entry.description, entry.impact]
+        .filter(Boolean)
+        .map((part) => String(part).trim())
+        .filter(Boolean);
+
+      return parts.join(" — ");
+    })
+    .filter(Boolean);
+
+  return items.length > 0
+    ? items
+    : [
+        "Automation opportunities were detected, but no readable items were available.",
+      ];
+}
+
+function inferStackFromText(audit: AuditRow) {
+  if (audit.detected_stack && Object.keys(audit.detected_stack).length > 0) {
+    return audit.detected_stack;
+  }
+
+  const combined = [
+    audit.executive_summary,
+    audit.engagement_flow_map,
+    audit.lead_leakage_summary,
+    audit.implementation_blueprint,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  const has = (terms: string[]) => terms.some((term) => combined.includes(term));
+
+  return {
+    website_form: has(["website form", "form", "contact form"])
+      ? "Detected"
+      : "Unclear",
+    live_chat: has(["live chat", "chat widget", "chat"])
+      ? "Detected"
+      : "Not detected",
+    ai_chatbot: has(["ai chatbot", "chatbot", "assistant"])
+      ? "Possible / unconfirmed"
+      : "Not detected",
+    crm: has(["crm"]) ? "Detected" : "Unclear",
+    missed_call_handling: has(["missed call", "text back", "callback"])
+      ? "Detected"
+      : "Not detected",
+    after_hours_response: has(["after-hours", "after hours", "out of hours"])
+      ? "Detected"
+      : "Weak or not detected",
+  };
+}
+
+async function getAudit(id: string): Promise<AuditRow | null> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !serviceRole) {
+    throw new Error("Missing Supabase environment variables.");
+  }
+
+  const supabase = createClient(url, serviceRole, {
+    auth: { persistSession: false },
+  });
+
+  const { data, error } = await supabase
+    .from("audit_reports")
+    .select("*")
+    .or(`id.eq.${id},submission_id.eq.${id}`)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to load audit report", error);
+    return null;
+  }
+
+  return data as AuditRow | null;
+}
+
+export default async function AuditReportPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const audit = await getAudit(id);
+
+  if (!audit) notFound();
+
+  const businessName = "Scaptra Audit Report";
+  const websiteUrl = `Submission ID: ${audit.submission_id || audit.id}`;
+  const overallScore = 65;
+  const responseSpeedScore = 62;
+  const enquiryPathScore = 68;
+  const trustScore = 64;
+  const conversionScore = 59;
+
+  const findings = toParagraphs(audit.lead_leakage_summary, [
+    "Primary lead leakage risks include delayed response times, incomplete after-hours coverage, and inconsistent follow-up.",
+  ]);
+
+  const engagementFlow = toParagraphs(audit.engagement_flow_map, [
+    "Current engagement flow could not be fully mapped from the available audit output.",
+  ]);
+
+  const quickWins = toOpportunityList(audit.automation_opportunity_matrix);
+
+  const nextStep =
+    audit.implementation_blueprint ||
+    "Install a simple enquiry handling system that captures missed calls, responds faster, and drives consistent follow-up.";
+
+  const detectedStack = inferStackFromText(audit);
+
+  const scoreCards = [
+    {
+      title: "Response Speed",
+      score: responseSpeedScore,
+      description: "How quickly and clearly a prospect can get a response.",
+    },
+    {
+      title: "Enquiry Path",
+      score: enquiryPathScore,
+      description: "How easy it is for someone to contact you and move forward.",
+    },
+    {
+      title: "Trust Signals",
+      score: trustScore,
+      description: "How much confidence your site and messaging build with buyers.",
+    },
+    {
+      title: "Conversion Readiness",
+      score: conversionScore,
+      description:
+        "How well your current setup turns enquiries into real conversations.",
+    },
   ];
 
-  const [messageIndex, setMessageIndex] = useState(0);
-  const [seconds, setSeconds] = useState(0);
-
-  useEffect(() => {
-    const msgInterval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % messages.length);
-    }, 2500);
-
-    const timer = setInterval(() => {
-      setSeconds((s) => s + 1);
-    }, 1000);
-
-    return () => {
-      clearInterval(msgInterval);
-      clearInterval(timer);
-    };
-  }, []);
-
   return (
     <main
       style={{
         minHeight: "100vh",
         background:
-          "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
-        color: "#fff",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "24px",
+          "radial-gradient(circle at top, rgba(14,165,233,0.18), transparent 30%), linear-gradient(180deg, #020617 0%, #0f172a 100%)",
+        color: "#e2e8f0",
+        padding: "40px 20px 80px",
         fontFamily:
           'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}
     >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "720px",
-          border: "1px solid #1f2937",
-          borderRadius: "24px",
-          padding: "36px",
-          background: "rgba(15,23,42,0.85)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-        }}
-      >
+      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
         <div
           style={{
-            color: "#38bdf8",
-            fontSize: "13px",
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            marginBottom: "12px",
-            fontWeight: 700,
-          }}
-        >
-          Scaptra Audit
-        </div>
-
-        <h1
-          style={{
-            margin: "0 0 14px",
-            fontSize: "36px",
-            fontWeight: 800,
-          }}
-        >
-          Building your audit report
-        </h1>
-
-        <p
-          style={{
-            marginBottom: "20px",
-            color: "#cbd5e1",
-            fontSize: "17px",
-          }}
-        >
-          {messages[messageIndex]}
-        </p>
-
-        <div
-          style={{
-            height: "10px",
-            background: "#111827",
-            borderRadius: "999px",
-            overflow: "hidden",
-            marginBottom: "16px",
-          }}
-        >
-          <div
-            style={{
-              width: "40%",
-              height: "100%",
-              background: "linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)",
-              animation: "loadingMove 1.4s ease-in-out infinite",
-            }}
-          />
-        </div>
-
-        <p style={{ color: "#64748b", fontSize: "14px" }}>
-          This usually takes 10–30 seconds.
-          {seconds > 20 && " Still working — some sites take longer."}
-        </p>
-
-        {seconds > 35 && (
-          <div
-            style={{
-              marginTop: "18px",
-              padding: "14px",
-              borderRadius: "12px",
-              background: "rgba(30,41,59,0.8)",
-              border: "1px solid #334155",
-              fontSize: "14px",
-              color: "#cbd5e1",
-              lineHeight: 1.6,
-            }}
-          >
-            This audit is taking longer than usual. Your report link has been
-            emailed — you can return shortly.
-          </div>
-        )}
-
-        <style>{`
-          @keyframes loadingMove {
-            0% { transform: translateX(-30%); opacity: 0.7; }
-            50% { transform: translateX(80%); opacity: 1; }
-            100% { transform: translateX(180%); opacity: 0.7; }
-          }
-        `}</style>
-      </div>
-    </main>
-  );
-}
-
-function SectionCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: "20px",
-        background:
-          "linear-gradient(180deg, rgba(17,24,39,0.96) 0%, rgba(3,7,18,0.96) 100%)",
-        padding: "24px",
-        boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
-      }}
-    >
-      <div style={{ marginBottom: "16px" }}>
-        <h2
-          style={{
-            margin: 0,
-            fontSize: "20px",
-            fontWeight: 700,
-            color: "#f9fafb",
-          }}
-        >
-          {title}
-        </h2>
-        {subtitle ? (
-          <p
-            style={{
-              margin: "6px 0 0",
-              color: "#94a3b8",
-              fontSize: "14px",
-              lineHeight: 1.5,
-            }}
-          >
-            {subtitle}
-          </p>
-        ) : null}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  helper,
-}: {
-  label: string;
-  value: string | number;
-  helper?: string;
-}) {
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: "18px",
-        padding: "18px",
-        background: "rgba(15, 23, 42, 0.78)",
-      }}
-    >
-      <div
-        style={{
-          color: "#94a3b8",
-          fontSize: "13px",
-          marginBottom: "10px",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          color: "#f8fafc",
-          fontSize: "30px",
-          fontWeight: 700,
-          lineHeight: 1.1,
-        }}
-      >
-        {value}
-      </div>
-      {helper ? (
-        <div
-          style={{
-            marginTop: "8px",
-            color: "#64748b",
-            fontSize: "12px",
-            lineHeight: 1.4,
-          }}
-        >
-          {helper}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function ScoreBar({
-  label,
-  value,
-  max,
-}: {
-  label: string;
-  value: number;
-  max: number;
-}) {
-  const percent = Math.max(0, Math.min(100, Math.round((value / max) * 100)));
-
-  return (
-    <div
-      style={{
-        border: "1px solid #1f2937",
-        borderRadius: "18px",
-        padding: "18px",
-        background: "rgba(15, 23, 42, 0.78)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          gap: "12px",
-          alignItems: "center",
-          marginBottom: "12px",
-        }}
-      >
-        <div style={{ color: "#cbd5e1", fontSize: "14px", fontWeight: 600 }}>
-          {label}
-        </div>
-        <div style={{ color: "#f8fafc", fontSize: "14px", fontWeight: 700 }}>
-          {value} / {max}
-        </div>
-      </div>
-
-      <div
-        style={{
-          height: "10px",
-          width: "100%",
-          background: "#111827",
-          borderRadius: "999px",
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            width: `${percent}%`,
-            height: "100%",
-            background:
-              "linear-gradient(90deg, rgba(99,102,241,1) 0%, rgba(56,189,248,1) 100%)",
-          }}
-        />
-      </div>
-
-      <div
-        style={{
-          marginTop: "10px",
-          color: "#64748b",
-          fontSize: "12px",
-        }}
-      >
-        {percent}% of benchmark
-      </div>
-    </div>
-  );
-}
-
-function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) return "$0";
-  return `$${value.toLocaleString()}`;
-}
-
-function scoreBand(score: number) {
-  if (score >= 80) return "Strong";
-  if (score >= 60) return "Good";
-  if (score >= 40) return "Needs Attention";
-  return "High Priority";
-}
-
-function scoreColor(score: number) {
-  if (score >= 80) return "#22c55e";
-  if (score >= 60) return "#38bdf8";
-  if (score >= 40) return "#f59e0b";
-  return "#ef4444";
-}
-
-function formatStatus(status: string | null | undefined) {
-  if (!status) return "Unknown";
-  return status.charAt(0).toUpperCase() + status.slice(1);
-}
-
-function formatAuditDate() {
-  return new Date().toLocaleDateString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function isLikelyRealPhone(value: string) {
-  if (!value) return false;
-
-  const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-
-  if (digits.length < 10) return false;
-  if (digits.length > 12) return false;
-  if (/^(\d)\1+$/.test(digits)) return false;
-  if (
-    /123456|234567|345678|456789|987654|876543|765432|111111|222222|999999|000000/.test(
-      digits
-    )
-  ) {
-    return false;
-  }
-
-  const startsValid =
-    trimmed.startsWith("+") ||
-    digits.startsWith("0") ||
-    digits.startsWith("61") ||
-    digits.startsWith("44") ||
-    digits.startsWith("1");
-
-  if (!startsValid) return false;
-
-  return true;
-}
-
-export default function AuditPage() {
-  const params = useParams();
-  const id = params.id as string;
-
-  const [submission, setSubmission] = useState<AuditSubmission | null>(null);
-  const [business, setBusiness] = useState<Business | null>(null);
-  const [score, setScore] = useState<AuditScore | null>(null);
-  const [pages, setPages] = useState<ScanPage[]>([]);
-  const [findings, setFindings] = useState<Finding[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const loadReport = async () => {
-      try {
-        const { data: submissionData, error: submissionError } = await supabase
-          .from("audit_submissions")
-          .select("*")
-          .eq("id", id)
-          .single();
-
-        if (submissionError || !submissionData) {
-          setErrorMessage("Audit submission not found.");
-          setLoading(false);
-          return;
-        }
-
-        setSubmission(submissionData);
-
-        const { data: businessData, error: businessError } = await supabase
-          .from("businesses")
-          .select("*")
-          .eq("id", submissionData.business_id)
-          .single();
-
-        if (businessError || !businessData) {
-          setErrorMessage("Business not found.");
-          setLoading(false);
-          return;
-        }
-
-        setBusiness(businessData);
-
-        const { data: scoreData } = await supabase
-          .from("audit_scores")
-          .select("*")
-          .eq("submission_id", id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (scoreData) {
-          setScore(scoreData);
-        }
-
-        const { data: scanData } = await supabase
-          .from("website_scans")
-          .select("id")
-          .eq("business_id", businessData.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (scanData) {
-          const { data: pagesData } = await supabase
-            .from("website_scan_pages")
-            .select("*")
-            .eq("scan_id", scanData.id)
-            .order("created_at", { ascending: true });
-
-          const pagesList = pagesData || [];
-          setPages(pagesList);
-
-          if (pagesList.length > 0) {
-            const pageIds = pagesList.map((p) => p.id);
-
-            const { data: findingsData } = await supabase
-              .from("website_scan_findings")
-              .select("*")
-              .in("page_id", pageIds);
-
-            setFindings(findingsData || []);
-          }
-        }
-
-        setLoading(false);
-      } catch (error) {
-        console.error(error);
-        setErrorMessage("Unexpected error while loading the audit report.");
-        setLoading(false);
-      }
-    };
-
-    if (id) {
-      loadReport();
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (!id || loading || errorMessage) return;
-
-    const viewedKey = `audit_report_viewed_${id}`;
-    const alreadyTracked =
-      typeof window !== "undefined" &&
-      sessionStorage.getItem(viewedKey) === "true";
-
-    if (alreadyTracked) return;
-
-    const trackView = async () => {
-      try {
-        await fetch("/api/audit-events", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          keepalive: true,
-          body: JSON.stringify({
-            auditId: id,
-            eventType: "report_viewed",
-            eventValue: window.location.pathname,
-          }),
-        });
-
-        sessionStorage.setItem(viewedKey, "true");
-      } catch (error) {
-        console.error("Failed to track report view:", error);
-      }
-    };
-
-    void trackView();
-  }, [id, loading, errorMessage]);
-
-  async function trackCtaClick(eventValue: string) {
-    try {
-      await fetch("/api/audit-events", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        keepalive: true,
-        body: JSON.stringify({
-          auditId: id,
-          eventType: "cta_clicked",
-          eventValue,
-        }),
-      });
-    } catch (error) {
-      console.error("Failed to track CTA click:", error);
-    }
-  }
-
-  const findingsByPageId = useMemo(() => {
-    const map = new Map<string, Finding[]>();
-
-    for (const finding of findings) {
-      const existing = map.get(finding.page_id) || [];
-      existing.push(finding);
-      map.set(finding.page_id, existing);
-    }
-
-    return map;
-  }, [findings]);
-
-  const emailFindings = useMemo(
-    () => findings.filter((f) => f.finding_type === "email_address"),
-    [findings]
-  );
-
-  const phoneFindings = useMemo(
-    () => findings.filter((f) => f.finding_type === "phone_number"),
-    [findings]
-  );
-
-  const bookingFindings = useMemo(
-    () =>
-      findings.filter(
-        (f) => f.finding_type === "booking_widget" && f.finding_value === "true"
-      ),
-    [findings]
-  );
-
-  const uniqueEmails = useMemo(
-    () => Array.from(new Set(emailFindings.map((f) => f.finding_value))),
-    [emailFindings]
-  );
-
-  const uniquePhones = useMemo(() => {
-    const rawPhones = phoneFindings.map((f) => f.finding_value);
-
-    return Array.from(
-      new Set(rawPhones.filter((phone) => isLikelyRealPhone(phone)))
-    );
-  }, [phoneFindings]);
-
-  const filteredFindings = useMemo(() => {
-    return findings.filter((finding) => {
-      return finding.finding_type !== "phone_number";
-    });
-  }, [findings]);
-
-  const summary = useMemo(() => {
-    const totalPages = pages.length;
-    const singlePageSite = totalPages <= 1;
-
-    let missingTitles = 0;
-    let missingMetaDescriptions = 0;
-    let pagesWithNoForms = 0;
-    let pagesWithNoButtons = 0;
-    let pagesWithNoH1 = 0;
-
-    for (const page of pages) {
-      const pageFindings = findingsByPageId.get(page.id) || [];
-
-      const hasMissingTitle = pageFindings.some(
-        (f) => f.finding_type === "missing_title"
-      );
-      const hasMissingMeta = pageFindings.some(
-        (f) => f.finding_type === "missing_meta_description"
-      );
-
-      const h1CountFinding = pageFindings.find((f) => f.finding_type === "h1_count");
-      const formCountFinding = pageFindings.find(
-        (f) => f.finding_type === "form_count"
-      );
-      const buttonCountFinding = pageFindings.find(
-        (f) => f.finding_type === "button_count"
-      );
-
-      const h1Count = h1CountFinding ? parseInt(h1CountFinding.finding_value, 10) : 0;
-      const formCount = formCountFinding
-        ? parseInt(formCountFinding.finding_value, 10)
-        : 0;
-      const buttonCount = buttonCountFinding
-        ? parseInt(buttonCountFinding.finding_value, 10)
-        : 0;
-
-      if (hasMissingTitle) missingTitles += 1;
-      if (hasMissingMeta) missingMetaDescriptions += 1;
-      if (formCount === 0) pagesWithNoForms += 1;
-      if (buttonCount === 0) pagesWithNoButtons += 1;
-      if (h1Count === 0) pagesWithNoH1 += 1;
-    }
-
-    return {
-      totalPages,
-      siteStructure: singlePageSite ? "Single-page site" : "Multi-page site",
-      missingTitles,
-      missingMetaDescriptions,
-      pagesWithNoForms,
-      pagesWithNoButtons,
-      pagesWithNoH1,
-    };
-  }, [pages, findingsByPageId]);
-
-  const revenueLeak = useMemo(() => {
-    const notes = score?.scoring_notes?.revenue_leak_estimate;
-    if (!notes) {
-      return {
-        missedLeadsLow: 0,
-        missedLeadsHigh: 0,
-        estimatedRevenueLow: 0,
-        estimatedRevenueHigh: 0,
-      };
-    }
-
-    return {
-      missedLeadsLow: notes.missedLeadsLow ?? 0,
-      missedLeadsHigh: notes.missedLeadsHigh ?? 0,
-      estimatedRevenueLow: notes.estimatedRevenueLow ?? 0,
-      estimatedRevenueHigh: notes.estimatedRevenueHigh ?? 0,
-    };
-  }, [score]);
-
-  const executiveSummary = useMemo(() => {
-    const items: string[] = [];
-
-    if ((score?.total_score ?? 0) < 50) {
-      items.push(
-        "The site shows clear gaps in lead capture and follow-up readiness, which likely reduces enquiry conversion."
-      );
-    } else if ((score?.total_score ?? 0) < 75) {
-      items.push(
-        "The site has a workable foundation, but several conversion and response opportunities are still being missed."
-      );
-    } else {
-      items.push(
-        "The site has a strong foundation, though there are still opportunities to tighten conversion and automation."
-      );
-    }
-
-    if (summary.pagesWithNoForms > 0) {
-      items.push(
-        `${summary.pagesWithNoForms} page(s) currently have no form, limiting direct lead capture opportunities.`
-      );
-    }
-
-    if (bookingFindings.length === 0) {
-      items.push(
-        "No booking signal was detected, which may slow down or interrupt high-intent enquiries."
-      );
-    } else {
-      items.push(
-        "A booking signal is present, which supports faster lead handling and better automation potential."
-      );
-    }
-
-    if (uniqueEmails.length === 0 && uniquePhones.length === 0) {
-      items.push(
-        "Visible contact signals are weak, making it harder for visitors to take action quickly."
-      );
-    } else {
-      items.push(
-        "Contact signals are visible, giving visitors at least one clear way to make contact."
-      );
-    }
-
-    return items.slice(0, 4);
-  }, [score, summary, bookingFindings.length, uniqueEmails.length, uniquePhones.length]);
-
-  const recommendations = useMemo(() => {
-    const items: string[] = [];
-
-    if (summary.pagesWithNoForms > 0) {
-      items.push("Add lead capture forms to key service and landing pages.");
-    }
-
-    if (summary.pagesWithNoButtons > 0) {
-      items.push("Strengthen call-to-action buttons on pages with weak conversion paths.");
-    }
-
-    if (bookingFindings.length === 0) {
-      items.push("Add a booking flow for quotes, consultations, or demos.");
-    }
-
-    if (summary.missingTitles > 0 || summary.missingMetaDescriptions > 0) {
-      items.push("Fix page metadata to improve discoverability and click-through.");
-    }
-
-    items.push("Connect enquiries to a CRM and automate first response.");
-    items.push("Add AI-assisted chat or qualification flow for inbound visitors.");
-
-    return items.slice(0, 6);
-  }, [summary, bookingFindings.length]);
-
-  if (loading) {
-    return <LoadingScreen />;
-  }
-
-  if (errorMessage) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background:
-            "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
-          color: "#fff",
-          padding: "32px 24px 80px",
-          fontFamily:
-            'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-        }}
-      >
-        <div style={{ maxWidth: "1400px", margin: "0 auto" }}>
-          <h1 style={{ color: "#f8fafc" }}>Audit Error</h1>
-          <p style={{ color: "#cbd5e1" }}>{errorMessage}</p>
-        </div>
-      </main>
-    );
-  }
-
-  const totalScore = score?.total_score ?? 0;
-  const scoreLabel = scoreBand(totalScore);
-  const scoreAccent = scoreColor(totalScore);
-
-  return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, rgba(30,41,59,0.45) 0%, #020617 45%, #000000 100%)",
-        color: "#fff",
-        padding: "32px 24px 80px",
-        fontFamily:
-          'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
-      <div
-        style={{
-          maxWidth: "1400px",
-          margin: "0 auto",
-          width: "100%",
-        }}
-      >
-        <div
-          style={{
-            marginBottom: "24px",
             display: "flex",
             justifyContent: "space-between",
+            gap: 16,
             alignItems: "center",
-            gap: "16px",
+            marginBottom: 24,
             flexWrap: "wrap",
           }}
         >
@@ -826,675 +245,574 @@ export default function AuditPage() {
             <div
               style={{
                 color: "#38bdf8",
-                fontSize: "13px",
+                fontSize: 13,
                 fontWeight: 700,
                 letterSpacing: "0.08em",
                 textTransform: "uppercase",
-                marginBottom: "8px",
+                marginBottom: 8,
               }}
             >
-              Scaptra Audit
+              Scaptra Audit Report
             </div>
             <h1
               style={{
                 margin: 0,
-                fontSize: "40px",
+                fontSize: "clamp(32px, 6vw, 56px)",
                 lineHeight: 1.05,
                 color: "#f8fafc",
               }}
             >
-              Website Audit Report
+              {businessName}
             </h1>
-          </div>
-
-          <div
-            style={{
-              border: `1px solid ${scoreAccent}`,
-              borderRadius: "999px",
-              padding: "10px 16px",
-              color: scoreAccent,
-              fontWeight: 700,
-              fontSize: "14px",
-              background: "rgba(15,23,42,0.75)",
-            }}
-          >
-            {scoreLabel}
-          </div>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(320px, 1.25fr) minmax(260px, 0.75fr)",
-            gap: "20px",
-            marginBottom: "24px",
-          }}
-        >
-          <div
-            style={{
-              border: "1px solid #1f2937",
-              borderRadius: "24px",
-              padding: "28px",
-              background:
-                "linear-gradient(135deg, rgba(15,23,42,0.96) 0%, rgba(17,24,39,0.96) 55%, rgba(2,6,23,0.98) 100%)",
-              boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
-            }}
-          >
-            <div
+            <p
               style={{
+                margin: "12px 0 0",
                 color: "#94a3b8",
-                fontSize: "13px",
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-                marginBottom: "10px",
+                fontSize: 16,
+                maxWidth: 760,
               }}
             >
-              Audit Overview
-            </div>
+              This report highlights where enquiries are likely slipping through
+              the cracks, how your current engagement stack appears to operate,
+              and where the fastest gains can be made.
+            </p>
+          </div>
 
+          <div
+            style={{
+              border: "1px solid rgba(148,163,184,0.2)",
+              background: "rgba(15,23,42,0.8)",
+              borderRadius: 20,
+              padding: 18,
+              minWidth: 250,
+              boxShadow: "0 20px 40px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div style={{ color: "#94a3b8", fontSize: 13, marginBottom: 8 }}>
+              Audit reference
+            </div>
             <div
               style={{
                 color: "#f8fafc",
-                fontSize: "42px",
-                fontWeight: 800,
-                lineHeight: 1.05,
-                marginBottom: "12px",
+                fontWeight: 600,
+                wordBreak: "break-word",
               }}
             >
-              {business?.business_name || "Business Audit"}
+              {websiteUrl}
             </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: "8px",
-                color: "#cbd5e1",
-                fontSize: "15px",
-              }}
-            >
-              <div>
-                <strong>Website:</strong>{" "}
-                <a
-                  href={business?.website || "#"}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ color: "#38bdf8", textDecoration: "none" }}
-                >
-                  {business?.website || "N/A"}
-                </a>
-              </div>
-              <div>
-                <strong>Status:</strong> {formatStatus(submission?.status)}
-              </div>
-              <div>
-                <strong>Report Date:</strong> {formatAuditDate()}
-              </div>
-              <div>
-                <strong>Site Structure:</strong> {summary.siteStructure}
-              </div>
-            </div>
-
-            <div
-              style={{
-                marginTop: "20px",
-                color: "#94a3b8",
-                lineHeight: 1.6,
-                maxWidth: "860px",
-                fontSize: "15px",
-              }}
-            >
-              This report highlights how effectively the website captures enquiries,
-              supports fast response, and prepares the business for automation and AI-led follow-up.
+            <div style={{ color: "#64748b", fontSize: 13, marginTop: 10 }}>
+              Generated {formatDate(audit.created_at)}
             </div>
           </div>
+        </div>
 
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.3fr 1fr",
+            gap: 24,
+            marginBottom: 24,
+          }}
+        >
           <div
             style={{
-              border: "1px solid #1f2937",
-              borderRadius: "24px",
-              padding: "28px",
+              border: "1px solid rgba(148,163,184,0.14)",
+              borderRadius: 28,
+              padding: 28,
               background:
-                "linear-gradient(180deg, rgba(15,23,42,0.96) 0%, rgba(2,6,23,0.98) 100%)",
-              boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              alignItems: "center",
-              textAlign: "center",
+                "linear-gradient(135deg, rgba(56,189,248,0.14) 0%, rgba(15,23,42,0.94) 55%, rgba(2,6,23,0.98) 100%)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.3)",
             }}
           >
             <div
               style={{
-                color: "#94a3b8",
-                fontSize: "13px",
+                color: "#38bdf8",
+                fontSize: 13,
                 textTransform: "uppercase",
                 letterSpacing: "0.08em",
-                marginBottom: "12px",
-              }}
-            >
-              Overall Score
-            </div>
-
-            <div
-              style={{
-                fontSize: "72px",
-                fontWeight: 800,
-                lineHeight: 1,
-                color: scoreAccent,
-                marginBottom: "10px",
-              }}
-            >
-              {totalScore}
-            </div>
-
-            <div
-              style={{
-                color: "#e2e8f0",
-                fontSize: "18px",
+                marginBottom: 12,
                 fontWeight: 700,
-                marginBottom: "6px",
               }}
             >
-              {scoreLabel}
+              Executive Summary
             </div>
 
-            <div
+            <h2
               style={{
-                color: "#64748b",
-                fontSize: "14px",
-                maxWidth: "240px",
-                lineHeight: 1.5,
+                margin: "0 0 12px",
+                color: "#f8fafc",
+                fontSize: 30,
+                lineHeight: 1.15,
               }}
             >
-              Composite score based on lead capture, response readiness, CRM signals,
-              automation opportunity, and AI readiness.
-            </div>
-          </div>
-        </div>
+              {audit.executive_summary || getScoreMessage(overallScore)}
+            </h2>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-            gap: "16px",
-            marginBottom: "24px",
-          }}
-        >
-          <MetricCard
-            label="Pages Scanned"
-            value={summary.totalPages}
-            helper={summary.siteStructure}
-          />
-          <MetricCard
-            label="Detected Emails"
-            value={uniqueEmails.length}
-            helper={uniqueEmails.length > 0 ? uniqueEmails[0] : "No email detected"}
-          />
-          <MetricCard
-            label="Detected Phone Numbers"
-            value={uniquePhones.length}
-            helper={uniquePhones.length > 0 ? "Contact path available" : "No phone detected"}
-          />
-          <MetricCard
-            label="Booking Signal"
-            value={bookingFindings.length > 0 ? "Yes" : "No"}
-            helper={
-              bookingFindings.length > 0
-                ? "Booking flow or booking signal detected"
-                : "No booking signal detected"
-            }
-          />
-          <MetricCard
-            label="Revenue Risk"
-            value={`${formatCurrency(revenueLeak.estimatedRevenueLow)} - ${formatCurrency(
-              revenueLeak.estimatedRevenueHigh
-            )}`}
-            helper="Estimated monthly revenue at risk"
-          />
-        </div>
+            <p
+              style={{
+                margin: 0,
+                color: "#cbd5e1",
+                fontSize: 16,
+                lineHeight: 1.7,
+                maxWidth: 700,
+              }}
+            >
+              The biggest issue is rarely lead volume. It is what happens after
+              a lead arrives. Missed calls, slow follow-up, weak enquiry
+              handling, and unclear next steps quietly reduce conversion before
+              anyone notices.
+            </p>
 
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-            gap: "16px",
-            marginBottom: "24px",
-          }}
-        >
-          <ScoreBar
-            label="Lead Capture"
-            value={score?.lead_capture_score ?? 0}
-            max={70}
-          />
-          <ScoreBar
-            label="Response Efficiency"
-            value={score?.response_efficiency_score ?? 0}
-            max={15}
-          />
-          <ScoreBar
-            label="CRM Data"
-            value={score?.crm_data_score ?? 0}
-            max={15}
-          />
-          <ScoreBar
-            label="Automation"
-            value={score?.automation_score ?? 0}
-            max={15}
-          />
-          <ScoreBar
-            label="AI Readiness"
-            value={score?.ai_readiness_score ?? 0}
-            max={15}
-          />
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(320px, 1fr) minmax(320px, 1fr)",
-            gap: "20px",
-            marginBottom: "24px",
-          }}
-        >
-          <SectionCard
-            title="Executive Summary"
-            subtitle="A concise view of what matters most from the audit."
-          >
-            <div style={{ display: "grid", gap: "12px" }}>
-              {executiveSummary.map((item, index) => (
-                <div
-                  key={`${item}-${index}`}
-                  style={{
-                    border: "1px solid #1f2937",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
-                    background: "rgba(15,23,42,0.6)",
-                    color: "#e2e8f0",
-                    lineHeight: 1.6,
-                    fontSize: "14px",
-                  }}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Priority Actions"
-            subtitle="Recommended next moves based on the current site structure and conversion signals."
-          >
-            <div style={{ display: "grid", gap: "12px" }}>
-              {recommendations.map((item, index) => (
-                <div
-                  key={`${item}-${index}`}
-                  style={{
-                    border: "1px solid #1f2937",
-                    borderRadius: "16px",
-                    padding: "14px 16px",
-                    background: "rgba(15,23,42,0.6)",
-                    color: "#e2e8f0",
-                    lineHeight: 1.6,
-                    fontSize: "14px",
-                  }}
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
-          </SectionCard>
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(320px, 1fr) minmax(320px, 1fr)",
-            gap: "20px",
-            marginBottom: "24px",
-          }}
-        >
-          <SectionCard
-            title="Technical Signals"
-            subtitle="Core structural and conversion findings from the crawl."
-          >
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-                gap: "12px",
+                gap: 14,
+                marginTop: 24,
               }}
             >
-              <MetricCard
-                label="Missing Titles"
-                value={summary.missingTitles}
-                helper="Pages without title tags"
-              />
-              <MetricCard
-                label="Missing Meta Descriptions"
-                value={summary.missingMetaDescriptions}
-                helper="Pages without meta descriptions"
-              />
-              <MetricCard
-                label="Pages With No Forms"
-                value={summary.pagesWithNoForms}
-                helper="Lead capture gap"
-              />
-              <MetricCard
-                label="Pages With No Buttons"
-                value={summary.pagesWithNoButtons}
-                helper="Weak conversion path"
-              />
-              <MetricCard
-                label="Pages With No H1"
-                value={summary.pagesWithNoH1}
-                helper="Heading structure issue"
-              />
-              <MetricCard
-                label="Missed Leads Estimate"
-                value={`${revenueLeak.missedLeadsLow} - ${revenueLeak.missedLeadsHigh}`}
-                helper="Estimated monthly missed enquiries"
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard
-            title="Homepage Snapshot"
-            subtitle="A quick look at the homepage or primary landing page scan."
-          >
-            {pages.length === 0 ? (
-              <p style={{ color: "#94a3b8" }}>No page data found.</p>
-            ) : (
-              <div style={{ display: "grid", gap: "14px" }}>
-                <div>
-                  <div style={{ color: "#64748b", fontSize: "12px", marginBottom: "6px" }}>
-                    Page Title
-                  </div>
-                  <div style={{ color: "#f8fafc", lineHeight: 1.5 }}>
-                    {pages[0]?.page_title || "None found"}
-                  </div>
-                </div>
-
-                <div>
-                  <div style={{ color: "#64748b", fontSize: "12px", marginBottom: "6px" }}>
-                    URL
-                  </div>
-                  <a
-                    href={pages[0]?.page_url || "#"}
-                    target="_blank"
-                    rel="noreferrer"
-                    style={{ color: "#38bdf8", textDecoration: "none", lineHeight: 1.5 }}
-                  >
-                    {pages[0]?.page_url || "N/A"}
-                  </a>
-                </div>
-
+              {[
+                { label: "Overall score", value: `${overallScore}/100` },
+                {
+                  label: "Risk priority",
+                  value: getPriorityFromScore(overallScore),
+                },
+                { label: "Current status", value: getScoreLabel(overallScore) },
+              ].map((item) => (
                 <div
+                  key={item.label}
                   style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                    gap: "12px",
-                    marginTop: "8px",
+                    borderRadius: 20,
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(148,163,184,0.14)",
+                    padding: 18,
                   }}
                 >
-                  <MetricCard
-                    label="HTTP Status"
-                    value={pages[0]?.http_status ?? "Unknown"}
-                  />
-                  <MetricCard
-                    label="H1 Count"
-                    value={
-                      findingsByPageId
-                        .get(pages[0]?.id || "")
-                        ?.find((f) => f.finding_type === "h1_count")?.finding_value ?? "0"
-                    }
-                  />
-                  <MetricCard
-                    label="Form Count"
-                    value={
-                      findingsByPageId
-                        .get(pages[0]?.id || "")
-                        ?.find((f) => f.finding_type === "form_count")?.finding_value ?? "0"
-                    }
-                  />
-                  <MetricCard
-                    label="Button Count"
-                    value={
-                      findingsByPageId
-                        .get(pages[0]?.id || "")
-                        ?.find((f) => f.finding_type === "button_count")?.finding_value ?? "0"
-                    }
-                  />
+                  <div
+                    style={{
+                      color: "#94a3b8",
+                      fontSize: 13,
+                      marginBottom: 6,
+                    }}
+                  >
+                    {item.label}
+                  </div>
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontSize: 22,
+                      fontWeight: 700,
+                    }}
+                  >
+                    {item.value}
+                  </div>
                 </div>
-              </div>
-            )}
-          </SectionCard>
-        </div>
+              ))}
+            </div>
+          </div>
 
-        <SectionCard
-          title="Contact Signals"
-          subtitle="Visible contact paths detected across the scanned pages."
-        >
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 1fr)",
-              gap: "20px",
+              border: "1px solid rgba(148,163,184,0.14)",
+              borderRadius: 28,
+              padding: 28,
+              background: "rgba(15,23,42,0.86)",
+              boxShadow: "0 24px 60px rgba(0,0,0,0.28)",
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
             }}
           >
             <div>
               <div
                 style={{
-                  color: "#94a3b8",
-                  fontSize: "13px",
-                  marginBottom: "12px",
+                  color: "#38bdf8",
+                  fontSize: 13,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  marginBottom: 16,
                   fontWeight: 700,
                 }}
               >
-                Email Addresses
+                Lead Handling Score
               </div>
 
-              {uniqueEmails.length === 0 ? (
-                <div style={{ color: "#64748b" }}>No email addresses detected.</div>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {uniqueEmails.slice(0, 8).map((email) => (
-                    <div
-                      key={email}
-                      style={{
-                        border: "1px solid #1f2937",
-                        borderRadius: "14px",
-                        padding: "12px 14px",
-                        background: "rgba(15,23,42,0.65)",
-                        color: "#e2e8f0",
-                      }}
-                    >
-                      {email}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
               <div
                 style={{
-                  color: "#94a3b8",
-                  fontSize: "13px",
-                  marginBottom: "12px",
-                  fontWeight: 700,
+                  width: 190,
+                  height: 190,
+                  borderRadius: "50%",
+                  margin: "0 auto 18px",
+                  display: "grid",
+                  placeItems: "center",
+                  ...scoreRingStyle(overallScore),
                 }}
               >
-                Phone Numbers
-              </div>
-
-              {uniquePhones.length === 0 ? (
-                <div style={{ color: "#64748b" }}>No phone numbers detected.</div>
-              ) : (
-                <div style={{ display: "grid", gap: "10px" }}>
-                  {uniquePhones.slice(0, 8).map((phone) => (
+                <div
+                  style={{
+                    width: 146,
+                    height: 146,
+                    borderRadius: "50%",
+                    display: "grid",
+                    placeItems: "center",
+                    background: "#020617",
+                    border: "1px solid rgba(148,163,184,0.18)",
+                  }}
+                >
+                  <div style={{ textAlign: "center" }}>
                     <div
-                      key={phone}
                       style={{
-                        border: "1px solid #1f2937",
-                        borderRadius: "14px",
-                        padding: "12px 14px",
-                        background: "rgba(15,23,42,0.65)",
-                        color: "#e2e8f0",
+                        color: "#f8fafc",
+                        fontSize: 44,
+                        fontWeight: 800,
                       }}
                     >
-                      {phone}
+                      {overallScore}
                     </div>
-                  ))}
+                    <div style={{ color: "#94a3b8", fontSize: 14 }}>/ 100</div>
+                  </div>
                 </div>
-              )}
+              </div>
+
+              <div
+                style={{
+                  textAlign: "center",
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: "#f8fafc",
+                  marginBottom: 8,
+                }}
+              >
+                {getScoreLabel(overallScore)}
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#94a3b8",
+                  fontSize: 15,
+                  lineHeight: 1.6,
+                  textAlign: "center",
+                }}
+              >
+                This score reflects how well your business appears to capture,
+                respond to, and convert incoming enquiries.
+              </p>
             </div>
           </div>
-        </SectionCard>
+        </section>
 
-        <div style={{ height: "24px" }} />
-
-        <SectionCard
-          title="Detailed Findings"
-          subtitle="Lower-level findings captured during the crawl."
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 18,
+            marginBottom: 24,
+          }}
         >
-          {filteredFindings.length === 0 ? (
-            <p style={{ color: "#94a3b8" }}>No findings stored yet.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {filteredFindings.slice(0, 16).map((finding) => (
+          {scoreCards.map((card) => (
+            <div
+              key={card.title}
+              style={{
+                borderRadius: 24,
+                padding: 22,
+                background: "rgba(15,23,42,0.88)",
+                border: "1px solid rgba(148,163,184,0.14)",
+                boxShadow: "0 12px 30px rgba(0,0,0,0.2)",
+              }}
+            >
+              <div
+                style={{ color: "#94a3b8", fontSize: 14, marginBottom: 12 }}
+              >
+                {card.title}
+              </div>
+              <div
+                style={{
+                  color: "#f8fafc",
+                  fontSize: 38,
+                  lineHeight: 1,
+                  fontWeight: 800,
+                  marginBottom: 10,
+                }}
+              >
+                {card.score}
+              </div>
+              <div
+                style={{
+                  display: "inline-flex",
+                  padding: "6px 10px",
+                  borderRadius: 999,
+                  fontSize: 12,
+                  color: "#cbd5e1",
+                  background: "rgba(56,189,248,0.12)",
+                  marginBottom: 14,
+                }}
+              >
+                {getScoreLabel(card.score)}
+              </div>
+              <p
+                style={{
+                  margin: 0,
+                  color: "#94a3b8",
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                }}
+              >
+                {card.description}
+              </p>
+            </div>
+          ))}
+        </section>
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 24,
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              borderRadius: 28,
+              padding: 28,
+              background: "rgba(15,23,42,0.88)",
+              border: "1px solid rgba(148,163,184,0.14)",
+            }}
+          >
+            <div
+              style={{
+                color: "#38bdf8",
+                fontSize: 13,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 16,
+                fontWeight: 700,
+              }}
+            >
+              Lead Leakage Summary
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              {findings.map((finding, index) => (
                 <div
-                  key={finding.id}
+                  key={index}
                   style={{
-                    border: "1px solid #1f2937",
-                    borderRadius: "16px",
-                    padding: "16px",
-                    background: "rgba(15,23,42,0.6)",
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    padding: 16,
+                    borderRadius: 18,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(148,163,184,0.1)",
                   }}
                 >
                   <div
                     style={{
-                      color: "#f8fafc",
+                      minWidth: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      display: "grid",
+                      placeItems: "center",
+                      background: "rgba(239,68,68,0.15)",
+                      color: "#fca5a5",
+                      fontSize: 14,
                       fontWeight: 700,
-                      marginBottom: "6px",
-                      fontSize: "15px",
                     }}
                   >
-                    {finding.finding_type}
+                    {index + 1}
                   </div>
-                  <div style={{ color: "#cbd5e1", marginBottom: "4px", fontSize: "14px" }}>
-                    Value: {finding.finding_value}
+                  <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.65 }}>
+                    {finding}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div
+            style={{
+              borderRadius: 28,
+              padding: 28,
+              background: "rgba(15,23,42,0.88)",
+              border: "1px solid rgba(148,163,184,0.14)",
+            }}
+          >
+            <div
+              style={{
+                color: "#38bdf8",
+                fontSize: 13,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 16,
+                fontWeight: 700,
+              }}
+            >
+              Engagement Flow Map
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              {engagementFlow.map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    padding: 16,
+                    borderRadius: 18,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(148,163,184,0.1)",
+                  }}
+                >
+                  <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.65 }}>
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 24,
+            marginBottom: 24,
+          }}
+        >
+          <div
+            style={{
+              borderRadius: 28,
+              padding: 28,
+              background: "rgba(15,23,42,0.88)",
+              border: "1px solid rgba(148,163,184,0.14)",
+            }}
+          >
+            <div
+              style={{
+                color: "#38bdf8",
+                fontSize: 13,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 16,
+                fontWeight: 700,
+              }}
+            >
+              Current Engagement Stack
+            </div>
+            <div style={{ display: "grid", gap: 12 }}>
+              {Object.entries(detectedStack).map(([key, value]) => (
+                <div
+                  key={key}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 16,
+                    alignItems: "center",
+                    padding: 14,
+                    borderRadius: 16,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(148,163,184,0.1)",
+                  }}
+                >
+                  <div
+                    style={{
+                      color: "#cbd5e1",
+                      fontSize: 14,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {key.replace(/_/g, " ")}
                   </div>
-                  <div style={{ color: "#64748b", fontSize: "13px", lineHeight: 1.5 }}>
-                    {finding.finding_context}
+                  <div
+                    style={{
+                      color: "#f8fafc",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      padding: "6px 10px",
+                      borderRadius: 999,
+                      background: "rgba(56,189,248,0.12)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {value}
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </SectionCard>
+          </div>
 
-        <div style={{ height: "24px" }} />
-
-        <SectionCard
-          title="Crawled Pages"
-          subtitle="Pages included in the latest crawl and their core page-level metrics."
-        >
-          {pages.length === 0 ? (
-            <p style={{ color: "#94a3b8" }}>No crawled pages found.</p>
-          ) : (
-            <div style={{ display: "grid", gap: "12px" }}>
-              {pages.map((page) => {
-                const pageFindings = findingsByPageId.get(page.id) || [];
-
-                const h1CountFinding = pageFindings.find(
-                  (f) => f.finding_type === "h1_count"
-                );
-                const formCountFinding = pageFindings.find(
-                  (f) => f.finding_type === "form_count"
-                );
-                const buttonCountFinding = pageFindings.find(
-                  (f) => f.finding_type === "button_count"
-                );
-
-                return (
+          <div
+            style={{
+              borderRadius: 28,
+              padding: 28,
+              background: "rgba(15,23,42,0.88)",
+              border: "1px solid rgba(148,163,184,0.14)",
+            }}
+          >
+            <div
+              style={{
+                color: "#38bdf8",
+                fontSize: 13,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+                marginBottom: 16,
+                fontWeight: 700,
+              }}
+            >
+              Automation Opportunities
+            </div>
+            <div style={{ display: "grid", gap: 14 }}>
+              {quickWins.map((item, index) => (
+                <div
+                  key={index}
+                  style={{
+                    display: "flex",
+                    gap: 14,
+                    alignItems: "flex-start",
+                    padding: 16,
+                    borderRadius: 18,
+                    background: "rgba(255,255,255,0.03)",
+                    border: "1px solid rgba(148,163,184,0.1)",
+                  }}
+                >
                   <div
-                    key={page.id}
                     style={{
-                      border: "1px solid #1f2937",
-                      borderRadius: "16px",
-                      padding: "16px",
-                      background: "rgba(15,23,42,0.6)",
+                      minWidth: 30,
+                      height: 30,
+                      borderRadius: "50%",
+                      display: "grid",
+                      placeItems: "center",
+                      background: "rgba(34,197,94,0.15)",
+                      color: "#86efac",
+                      fontSize: 14,
+                      fontWeight: 700,
                     }}
                   >
-                    <div
-                      style={{
-                        color: "#f8fafc",
-                        fontWeight: 700,
-                        marginBottom: "6px",
-                        fontSize: "16px",
-                      }}
-                    >
-                      {page.page_title || "Untitled Page"}
-                    </div>
-
-                    <div style={{ marginBottom: "12px" }}>
-                      <a
-                        href={page.page_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        style={{ color: "#38bdf8", textDecoration: "none", fontSize: "14px" }}
-                      >
-                        {page.page_url}
-                      </a>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
-                        gap: "12px",
-                      }}
-                    >
-                      <MetricCard label="HTTP Status" value={page.http_status ?? "Unknown"} />
-                      <MetricCard
-                        label="H1 Count"
-                        value={h1CountFinding?.finding_value ?? "0"}
-                      />
-                      <MetricCard
-                        label="Form Count"
-                        value={formCountFinding?.finding_value ?? "0"}
-                      />
-                      <MetricCard
-                        label="Button Count"
-                        value={buttonCountFinding?.finding_value ?? "0"}
-                      />
-                    </div>
+                    ✓
                   </div>
-                );
-              })}
+                  <p style={{ margin: 0, color: "#cbd5e1", lineHeight: 1.65 }}>
+                    {item}
+                  </p>
+                </div>
+              ))}
             </div>
-          )}
-        </SectionCard>
+          </div>
+        </section>
 
-        <div style={{ height: "24px" }} />
-
-        <div
+        <section
           style={{
-            border: "1px solid #1f2937",
-            borderRadius: "24px",
-            padding: "32px",
+            border: "1px solid rgba(148,163,184,0.14)",
+            borderRadius: 28,
+            padding: 28,
             background:
-              "linear-gradient(135deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
+              "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
             boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
           }}
         >
           <div
             style={{
               color: "#38bdf8",
-              fontSize: "13px",
+              fontSize: 13,
               textTransform: "uppercase",
               letterSpacing: "0.08em",
-              marginBottom: "10px",
+              marginBottom: 10,
               fontWeight: 700,
             }}
           >
@@ -1505,202 +823,62 @@ export default function AuditPage() {
             style={{
               margin: "0 0 12px",
               color: "#f8fafc",
-              fontSize: "30px",
+              fontSize: 28,
               lineHeight: 1.2,
             }}
           >
-            Stop losing enquiries and fix the gaps
+            Stop the revenue leak before you spend another dollar on more leads.
           </h2>
 
           <p
             style={{
+              margin: "0 0 22px",
               color: "#cbd5e1",
+              fontSize: 16,
               lineHeight: 1.7,
-              maxWidth: "860px",
-              fontSize: "15px",
-              marginBottom: "20px",
+              maxWidth: 900,
             }}
           >
-            This audit highlights where enquiries are being missed, where response
-            speed breaks down, and where automation can recover lost opportunities.
-            Most businesses don’t need more leads — they need better systems to
-            handle the ones they already have.
+            {nextStep}
           </p>
 
           <div
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-              gap: "14px",
-              marginBottom: "22px",
+              display: "flex",
+              gap: 14,
+              flexWrap: "wrap",
             }}
           >
-            <div
+            <Link
+              href="/book"
               style={{
-                border: "1px solid rgba(51,65,85,0.85)",
-                borderRadius: "16px",
-                padding: "16px",
-                background: "rgba(15,23,42,0.6)",
+                textDecoration: "none",
+                padding: "14px 22px",
+                borderRadius: 14,
+                background: "#38bdf8",
+                color: "#0f172a",
+                fontWeight: 800,
               }}
             >
-              <div
-                style={{
-                  color: "#f8fafc",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  fontSize: "15px",
-                }}
-              >
-                Lead handling gaps
-              </div>
-              <div
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                }}
-              >
-                Missed forms, weak calls to action, and poor response structure can
-                quietly reduce conversions.
-              </div>
-            </div>
+              Book a strategy call
+            </Link>
 
-            <div
+            <Link
+              href="/"
               style={{
-                border: "1px solid rgba(51,65,85,0.85)",
-                borderRadius: "16px",
-                padding: "16px",
-                background: "rgba(15,23,42,0.6)",
+                textDecoration: "none",
+                padding: "14px 22px",
+                borderRadius: 14,
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(148,163,184,0.18)",
+                color: "#e2e8f0",
+                fontWeight: 700,
               }}
             >
-              <div
-                style={{
-                  color: "#f8fafc",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  fontSize: "15px",
-                }}
-              >
-                Automation opportunity
-              </div>
-              <div
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                }}
-              >
-                Faster first response, CRM follow-up, and AI-assisted handling can
-                recover revenue already slipping through the cracks.
-              </div>
-            </div>
-
-            <div
-              style={{
-                border: "1px solid rgba(51,65,85,0.85)",
-                borderRadius: "16px",
-                padding: "16px",
-                background: "rgba(15,23,42,0.6)",
-              }}
-            >
-              <div
-                style={{
-                  color: "#f8fafc",
-                  fontWeight: 700,
-                  marginBottom: "8px",
-                  fontSize: "15px",
-                }}
-              >
-                Clear next action
-              </div>
-              <div
-                style={{
-                  color: "#94a3b8",
-                  fontSize: "14px",
-                  lineHeight: 1.6,
-                }}
-              >
-                The fastest next move is to identify the highest-impact fixes and build
-                a simple follow-up system around them.
-              </div>
-            </div>
+              Run another audit
+            </Link>
           </div>
-
-          <div
-  style={{
-    display: "flex",
-    gap: "14px",
-    flexWrap: "wrap",
-    alignItems: "center",
-  }}
->
-  <button
-    type="button"
-    onClick={async () => {
-      const bookingWindow = window.open("", "_blank", "noopener,noreferrer");
-
-      await trackCtaClick("book_strategy_call");
-
-      if (bookingWindow) {
-        bookingWindow.location.href =
-          "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN";
-      } else {
-        window.open(
-          "https://api.leadconnectorhq.com/widget/booking/a9PnMq5n6AtbQvx4YDVN",
-          "_blank",
-          "noopener,noreferrer"
-        );
-      }
-    }}
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: "14px",
-      padding: "14px 22px",
-      background: "linear-gradient(135deg, #38bdf8 0%, #6366f1 100%)",
-      color: "#020617",
-      fontWeight: 800,
-      textDecoration: "none",
-      fontSize: "14px",
-      border: "none",
-      cursor: "pointer",
-    }}
-  >
-    Book a Strategy Call
-  </button>
-
-  <a
-    href="mailto:support@scaptra.ai"
-    onClick={() => {
-      void trackCtaClick("email_support");
-    }}
-    style={{
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
-      borderRadius: "14px",
-      padding: "14px 22px",
-      border: "1px solid #334155",
-      color: "#e2e8f0",
-      textDecoration: "none",
-      fontWeight: 600,
-      fontSize: "14px",
-    }}
-  >
-    Email Support
-  </a>
-
-  <div
-    style={{
-      color: "#64748b",
-      fontSize: "13px",
-    }}
-  >
-    No pressure — just clarity on what to fix first
-  </div>
-</div>
-        </div>
+        </section>
       </div>
     </main>
   );
