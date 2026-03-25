@@ -45,7 +45,12 @@ export default function NewAuditPage() {
         throw new Error(auditData.error || "Audit failed");
       }
 
-      const auditId = auditData.auditId;
+      const submissionId = auditData.submissionId || auditData.auditId;
+      const reportId = auditData.reportId;
+
+      if (!reportId) {
+        throw new Error("Audit completed but no report ID was returned.");
+      }
 
       const emailResponse = await fetch("/api/send-audit-email", {
         method: "POST",
@@ -56,7 +61,8 @@ export default function NewAuditPage() {
           recipientEmail: email,
           businessName,
           website,
-          auditId,
+          auditId: submissionId,
+          reportId,
         }),
       });
 
@@ -66,8 +72,8 @@ export default function NewAuditPage() {
         throw new Error(emailData.error || "Audit ran but email failed");
       }
 
-      setMessage("Audit complete. Email sent successfully.");
-      router.push(`/audit/submitted?id=${auditId}`);
+      setMessage("Audit complete. Redirecting to your report...");
+      router.push(`/audit/${reportId}`);
     } catch (error) {
       console.error(error);
       setMessage(

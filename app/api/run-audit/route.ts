@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 function normalizeUrl(input: string): string {
@@ -212,6 +212,296 @@ function estimateRevenueLeak(params: {
   };
 }
 
+function buildExecutiveSummary(params: {
+  businessName: string;
+  totalScore: number;
+  lead_capture_score: number;
+  response_efficiency_score: number;
+  automation_score: number;
+}) {
+  const {
+    businessName,
+    totalScore,
+    lead_capture_score,
+    response_efficiency_score,
+    automation_score,
+  } = params;
+
+  let level = "moderate";
+  if (totalScore >= 70) level = "strong";
+  else if (totalScore < 50) level = "weak";
+
+  const responseComment =
+    response_efficiency_score >= 12
+      ? "response handling appears relatively strong"
+      : response_efficiency_score >= 8
+      ? "response handling shows some room for improvement"
+      : "response handling appears weak and likely contributes to lost enquiries";
+
+  const captureComment =
+    lead_capture_score >= 45
+      ? "Lead capture channels are well represented"
+      : lead_capture_score >= 25
+      ? "Lead capture channels are present but incomplete"
+      : "Lead capture channels appear limited or inconsistent";
+
+  const automationComment =
+    automation_score >= 10
+      ? "current automation coverage shows some useful foundations"
+      : "current automation coverage is limited";
+
+  return `This business currently demonstrates a ${level} level of engagement readiness, with an overall score of ${totalScore} out of 100. ${captureComment}, ${responseComment}, and ${automationComment}. ${businessName} appears suitable for staged improvement through better enquiry management, stronger follow-up structure, and selective automation deployment.`;
+}
+
+function buildEngagementFlowMap(params: {
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasBooking: boolean;
+  totalForms: number;
+  response_efficiency_score: number;
+  crm_data_score: number;
+}) {
+  const {
+    hasEmail,
+    hasPhone,
+    hasBooking,
+    totalForms,
+    response_efficiency_score,
+    crm_data_score,
+  } = params;
+
+  const channels: string[] = [];
+  if (hasPhone) channels.push("phone");
+  if (hasEmail) channels.push("email");
+  if (totalForms > 0) channels.push("website forms");
+  if (hasBooking) channels.push("booking flow");
+
+  const channelText =
+    channels.length > 0 ? channels.join(", ") : "limited visible contact channels";
+
+  const responseText =
+    response_efficiency_score >= 12
+      ? "Response handling appears relatively strong based on detected pathways."
+      : response_efficiency_score >= 8
+      ? "Response handling appears partly manual, with room for tighter speed and consistency."
+      : "Response handling appears weak or manual, with slow or inconsistent first-touch coverage likely.";
+
+  const crmText =
+    crm_data_score >= 10
+      ? "Basic CRM or structured data capture signals are present."
+      : "CRM and structured data capture signals appear limited or inconsistent.";
+
+  return `Current engagement flow: enquiries are received through ${channelText}. ${responseText} ${crmText}`;
+}
+
+function buildLeadLeakageSummary(params: {
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasBooking: boolean;
+  pagesWithNoH1: number;
+  missingTitleCount: number;
+  missingMetaCount: number;
+}) {
+  const {
+    pagesWithNoForms,
+    pagesWithNoButtons,
+    hasEmail,
+    hasPhone,
+    hasBooking,
+    pagesWithNoH1,
+    missingTitleCount,
+    missingMetaCount,
+  } = params;
+
+  const risks: string[] = [];
+
+  if (!hasPhone) risks.push("phone contact is not clearly available");
+  if (!hasEmail) risks.push("email contact is not clearly available");
+  if (!hasBooking) risks.push("no booking or scheduling pathway was detected");
+  if (pagesWithNoForms > 0) {
+    risks.push(`${pagesWithNoForms} scanned page(s) have no visible form capture`);
+  }
+  if (pagesWithNoButtons > 0) {
+    risks.push(`${pagesWithNoButtons} scanned page(s) show weak or missing button-driven CTAs`);
+  }
+  if (pagesWithNoH1 > 0) {
+    risks.push(`${pagesWithNoH1} page(s) have weak structural clarity with no H1`);
+  }
+  if (missingTitleCount > 0) {
+    risks.push(`${missingTitleCount} page(s) are missing title tags`);
+  }
+  if (missingMetaCount > 0) {
+    risks.push(`${missingMetaCount} page(s) are missing meta descriptions`);
+  }
+
+  if (risks.length === 0) {
+    return "Primary lead leakage risks appear moderate rather than severe, but there is still likely conversion loss through inconsistent follow-up and under-structured enquiry handling.";
+  }
+
+  return `Primary lead leakage risks include ${risks.join(", ")}. These issues are likely reducing conversion from existing enquiry traffic.`;
+}
+
+function buildAutomationOpportunityMatrix(params: {
+  hasBooking: boolean;
+  hasPhone: boolean;
+  hasEmail: boolean;
+  totalForms: number;
+  response_efficiency_score: number;
+  crm_data_score: number;
+  automation_score: number;
+}) {
+  const {
+    hasBooking,
+    hasPhone,
+    hasEmail,
+    totalForms,
+    response_efficiency_score,
+    crm_data_score,
+    automation_score,
+  } = params;
+
+  const matrix: Record<
+    string,
+    { title: string; description: string; impact: string }
+  > = {};
+
+  if (!hasBooking) {
+    matrix.booking_path = {
+      title: "Booking Pathway",
+      description:
+        "Add a visible booking or appointment pathway for high-intent visitors.",
+      impact: "Improves conversion from ready-to-act prospects.",
+    };
+  }
+
+  if (hasPhone) {
+    matrix.missed_call_recovery = {
+      title: "Missed Call Recovery",
+      description:
+        "Deploy instant SMS text-back and callback workflow for unanswered calls.",
+      impact: "Recovers high-intent leads that would otherwise go cold.",
+    };
+  }
+
+  if (totalForms > 0) {
+    matrix.form_acknowledgement = {
+      title: "Form Acknowledgement",
+      description:
+        "Send immediate confirmation and next-step messaging after website form submission.",
+      impact: "Reduces drop-off after initial enquiry.",
+    };
+  }
+
+  if (response_efficiency_score < 10) {
+    matrix.first_touch_speed = {
+      title: "First-Touch Speed",
+      description:
+        "Introduce fast-response automation to engage new enquiries within minutes.",
+      impact: "Improves response speed while buyer intent is highest.",
+    };
+  }
+
+  if (crm_data_score < 10) {
+    matrix.crm_structure = {
+      title: "CRM Structure",
+      description:
+        "Improve data capture and pipeline visibility for enquiries and follow-up.",
+      impact: "Creates accountability and cleaner conversion tracking.",
+    };
+  }
+
+  if (automation_score < 10) {
+    matrix.follow_up_sequence = {
+      title: "Follow-Up Sequence",
+      description:
+        "Deploy a staged follow-up workflow across SMS, email, or call reminders.",
+      impact: "Ensures leads are not lost due to inconsistent manual follow-up.",
+    };
+  }
+
+  if (!hasEmail) {
+    matrix.email_capture = {
+      title: "Email Capture",
+      description:
+        "Add clearer email capture or contact pathways for lower-friction lead handling.",
+      impact: "Improves channel flexibility and follow-up options.",
+    };
+  }
+
+  if (Object.keys(matrix).length === 0) {
+    matrix.optimisation = {
+      title: "Conversion Optimisation",
+      description:
+        "Tighten response handling and follow-up consistency across existing channels.",
+      impact: "Lifts conversion without needing more lead volume.",
+    };
+  }
+
+  return matrix;
+}
+
+function buildImplementationBlueprint(params: {
+  hasPhone: boolean;
+  totalForms: number;
+  crm_data_score: number;
+  automation_score: number;
+  hasBooking: boolean;
+}) {
+  const { hasPhone, totalForms, crm_data_score, automation_score, hasBooking } =
+    params;
+
+  const phases: string[] = [];
+
+  phases.push("Phase 1 - clean up enquiry handling and define ownership of inbound responses.");
+
+  if (hasPhone) {
+    phases.push("Phase 2 - deploy missed-call recovery and fast first-touch response handling.");
+  }
+
+  if (totalForms > 0) {
+    phases.push("Phase 3 - add instant acknowledgement and structured follow-up for website form enquiries.");
+  }
+
+  if (crm_data_score < 10) {
+    phases.push("Phase 4 - improve CRM capture and data consistency.");
+  }
+
+  if (automation_score < 10) {
+    phases.push("Phase 5 - deploy core automations for acknowledgement, follow-up, and lead recovery.");
+  }
+
+  if (!hasBooking) {
+    phases.push("Phase 6 - introduce a clearer booking or scheduling pathway for high-intent prospects.");
+  }
+
+  phases.push("Final phase - assess suitability for Scaptra Engage managed deployment with AI-assisted response handling.");
+
+  return `Recommended implementation path: ${phases.join(" ")}`;
+}
+
+function buildDetectedStack(params: {
+  hasPhone: boolean;
+  hasEmail: boolean;
+  hasBooking: boolean;
+  totalForms: number;
+  crm_data_score: number;
+}) {
+  const { hasPhone, hasEmail, hasBooking, totalForms, crm_data_score } = params;
+
+  return {
+    website_form: totalForms > 0 ? "Detected" : "Not detected",
+    live_chat: "Not detected",
+    ai_chatbot: "Not detected",
+    crm: crm_data_score >= 10 ? "Detected" : "Unclear",
+    missed_call_handling: hasPhone ? "Not detected" : "Not detected",
+    after_hours_response: hasBooking || hasPhone ? "Possible / unconfirmed" : "Weak or not detected",
+    email_channel: hasEmail ? "Detected" : "Not detected",
+    phone_channel: hasPhone ? "Detected" : "Not detected",
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -288,6 +578,7 @@ export async function POST(req: NextRequest) {
         .insert({
           business_id: business.id,
           status: "pending",
+          submission_source: "manual",
         })
         .select()
         .single();
@@ -303,7 +594,7 @@ export async function POST(req: NextRequest) {
       submissionId = submission.id;
     }
 
-    if (!submissionId || !businessId || !websiteUrl) {
+    if (!submissionId || !businessId || !websiteUrl || !businessName) {
       return NextResponse.json(
         { error: "Missing required audit data after setup" },
         { status: 400 }
@@ -670,7 +961,61 @@ export async function POST(req: NextRequest) {
       revenue_leak_estimate: revenueLeak,
     };
 
-    await supabase.from("audit_scores").insert({
+    const executive_summary = buildExecutiveSummary({
+      businessName,
+      totalScore: total_score,
+      lead_capture_score,
+      response_efficiency_score,
+      automation_score,
+    });
+
+    const engagement_flow_map = buildEngagementFlowMap({
+      hasEmail,
+      hasPhone,
+      hasBooking,
+      totalForms,
+      response_efficiency_score,
+      crm_data_score,
+    });
+
+    const lead_leakage_summary = buildLeadLeakageSummary({
+      pagesWithNoForms,
+      pagesWithNoButtons,
+      hasEmail,
+      hasPhone,
+      hasBooking,
+      pagesWithNoH1,
+      missingTitleCount: missingTitleFindings.length,
+      missingMetaCount: missingMetaFindings.length,
+    });
+
+    const automation_opportunity_matrix = buildAutomationOpportunityMatrix({
+      hasBooking,
+      hasPhone,
+      hasEmail,
+      totalForms,
+      response_efficiency_score,
+      crm_data_score,
+      automation_score,
+    });
+
+    const implementation_blueprint = buildImplementationBlueprint({
+      hasPhone,
+      totalForms,
+      crm_data_score,
+      automation_score,
+      hasBooking,
+    });
+
+    const detected_stack = buildDetectedStack({
+      hasPhone,
+      hasEmail,
+      hasBooking,
+      totalForms,
+      crm_data_score,
+    });
+
+    const { error: scoresError } = await supabase.from("audit_scores").insert({
       submission_id: submissionId,
       lead_capture_score,
       response_efficiency_score,
@@ -680,6 +1025,60 @@ export async function POST(req: NextRequest) {
       total_score,
       scoring_notes,
     });
+
+    if (scoresError) {
+      console.error("Failed to insert audit_scores:", scoresError);
+      await supabase
+        .from("audit_submissions")
+        .update({ status: "failed" })
+        .eq("id", submissionId);
+
+      return NextResponse.json(
+        { error: "Failed to save audit scores" },
+        { status: 500 }
+      );
+    }
+
+    const auditReportPayload = {
+      submission_id: submissionId,
+      executive_summary,
+      engagement_flow_map,
+      lead_leakage_summary,
+      automation_opportunity_matrix,
+      implementation_blueprint,
+      detected_stack,
+    };
+
+    const { data: auditReportData, error: auditReportError } = await supabase
+      .from("audit_reports")
+      .insert(auditReportPayload)
+      .select()
+      .single();
+
+    if (auditReportError || !auditReportData) {
+      console.error("FAILED TO INSERT AUDIT REPORT:", auditReportError);
+
+      await supabase
+        .from("website_scans")
+        .update({
+          scan_status: "failed",
+          scan_completed_at: new Date().toISOString(),
+        })
+        .eq("id", scanRow.id);
+
+      await supabase
+        .from("audit_submissions")
+        .update({ status: "failed" })
+        .eq("id", submissionId);
+
+      return NextResponse.json(
+        {
+          error: "Failed to save audit report",
+          details: auditReportError?.message ?? "Unknown audit report insert error",
+        },
+        { status: 500 }
+      );
+    }
 
     await supabase
       .from("website_scans")
@@ -701,6 +1100,7 @@ export async function POST(req: NextRequest) {
       businessId,
       websiteUrl,
       scanId: scanRow.id,
+      reportId: auditReportData.id,
       homepage: {
         title: homepageTitle,
         metaDescription: homepageDescription,
@@ -710,6 +1110,12 @@ export async function POST(req: NextRequest) {
       },
       crawledPages,
       revenueLeak,
+      reportPreview: {
+        executive_summary,
+        engagement_flow_map,
+        lead_leakage_summary,
+        implementation_blueprint,
+      },
     });
   } catch (error) {
     console.error("run-audit error:", error);
