@@ -228,368 +228,6 @@ function estimateRevenueLeak(params: {
   };
 }
 
-function buildExecutiveSummary(params: {
-  businessName: string;
-  totalScore: number;
-  lead_capture_score: number;
-  response_efficiency_score: number;
-  crm_data_score: number;
-  automation_score: number;
-  ai_readiness_score: number;
-  hasBooking: boolean;
-  hasPhone: boolean;
-  hasEmail: boolean;
-  totalForms: number;
-}) {
-  const {
-    businessName,
-    totalScore,
-    lead_capture_score,
-    response_efficiency_score,
-    crm_data_score,
-    automation_score,
-    ai_readiness_score,
-    hasBooking,
-    hasPhone,
-    hasEmail,
-    totalForms,
-  } = params;
-
-  let level = "moderate";
-  if (totalScore >= 75) level = "strong";
-  else if (totalScore < 45) level = "weak";
-
-  const captureComment =
-    lead_capture_score >= 24
-      ? "Lead capture pathways are reasonably visible."
-      : lead_capture_score >= 15
-      ? "Lead capture is present, but there are clear gaps in how visitors are guided to make contact."
-      : "Lead capture pathways appear limited, which increases the chance of lost enquiries.";
-
-  const responseComment =
-    response_efficiency_score >= 18
-      ? "Response readiness appears relatively strong."
-      : response_efficiency_score >= 11
-      ? "Response handling shows room for improvement."
-      : "Response handling appears underdeveloped and likely contributes to missed opportunities.";
-
-  const crmComment =
-    crm_data_score >= 12
-      ? "Basic contact and tracking signals are present."
-      : "Tracking and structured follow-up signals appear limited.";
-
-  const automationComment =
-    automation_score >= 12
-      ? "There are some useful automation foundations in place."
-      : "Automation coverage appears limited or inconsistent.";
-
-  const readinessComment =
-    ai_readiness_score >= 12
-      ? "The site shows reasonable readiness for more advanced automation."
-      : "The current setup would benefit from stronger fundamentals before more advanced automation is added.";
-
-  const channelSnapshot = [
-    hasPhone ? "phone contact is visible" : "phone contact is limited",
-    hasEmail ? "email is available" : "email is limited",
-    hasBooking ? "a booking path is present" : "no clear booking path was detected",
-    totalForms > 0 ? `${totalForms} form element(s) were detected` : "no visible forms were detected",
-  ].join(", ");
-
-  return `${businessName} currently demonstrates a ${level} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. ${captureComment} ${responseComment} ${crmComment} ${automationComment} ${readinessComment} On this review, ${channelSnapshot}.`;
-}
-
-function buildEngagementFlowMap(params: {
-  hasEmail: boolean;
-  hasPhone: boolean;
-  hasBooking: boolean;
-  totalForms: number;
-  response_efficiency_score: number;
-  crm_data_score: number;
-  totalPages: number;
-}) {
-  const {
-    hasEmail,
-    hasPhone,
-    hasBooking,
-    totalForms,
-    response_efficiency_score,
-    crm_data_score,
-    totalPages,
-  } = params;
-
-  const channels: string[] = [];
-  if (hasPhone) channels.push("phone");
-  if (hasEmail) channels.push("email");
-  if (totalForms > 0) channels.push("website form");
-  if (hasBooking) channels.push("booking path");
-
-  const channelText =
-    channels.length > 0
-      ? channels.join(", ")
-      : "very limited visible contact options";
-
-  const responseText =
-    response_efficiency_score >= 18
-      ? "The path from interest to contact appears relatively direct."
-      : response_efficiency_score >= 11
-      ? "Visitors can make contact, but the path is not as clear or immediate as it should be."
-      : "The path from interest to contact appears weak or fragmented, which can slow response and reduce conversions.";
-
-  const crmText =
-    crm_data_score >= 12
-      ? "There are signs of structured capture or follow-up readiness."
-      : "There are limited signs of structured data capture or follow-up readiness.";
-
-  return `Across ${totalPages} scanned page(s), the site appears to rely on ${channelText}. ${responseText} ${crmText}`;
-}
-
-function buildLeadLeakageSummary(params: {
-  pagesWithNoForms: number;
-  pagesWithNoButtons: number;
-  hasEmail: boolean;
-  hasPhone: boolean;
-  hasBooking: boolean;
-  pagesWithNoH1: number;
-  missingTitleCount: number;
-  missingMetaCount: number;
-  totalPages: number;
-}) {
-  const {
-    pagesWithNoForms,
-    pagesWithNoButtons,
-    hasEmail,
-    hasPhone,
-    hasBooking,
-    pagesWithNoH1,
-    missingTitleCount,
-    missingMetaCount,
-    totalPages,
-  } = params;
-
-  const risks: string[] = [];
-
-  if (!hasPhone) risks.push("phone contact is not clearly available");
-  if (!hasEmail) risks.push("email contact is not clearly available");
-  if (!hasBooking) risks.push("no booking or scheduling pathway was detected");
-  if (pagesWithNoForms > 0) {
-    risks.push(`${pagesWithNoForms} scanned page(s) have no visible form capture`);
-  }
-  if (pagesWithNoButtons > 0) {
-    risks.push(`${pagesWithNoButtons} scanned page(s) show weak or missing button-driven prompts to take action`);
-  }
-  if (pagesWithNoH1 > 0) {
-    risks.push(`${pagesWithNoH1} page(s) have weak page clarity with no clear main heading`);
-  }
-  if (missingTitleCount > 0) {
-    risks.push(`${missingTitleCount} page(s) are missing title tags`);
-  }
-  if (missingMetaCount > 0) {
-    risks.push(`${missingMetaCount} page(s) are missing meta descriptions`);
-  }
-
-  if (risks.length === 0) {
-    return `Across ${totalPages} scanned page(s), the main lead leakage risk appears to be inconsistency rather than a single major failure point. The site has usable contact signals, but there is still likely conversion loss through slower follow-up or under-structured enquiry handling.`;
-  }
-
-  return `Primary lead leakage risks include ${risks.join(", ")}. These issues are likely reducing conversion from existing enquiry traffic.`;
-}
-
-function buildAutomationOpportunityMatrix(params: {
-  hasBooking: boolean;
-  hasPhone: boolean;
-  hasEmail: boolean;
-  totalForms: number;
-  response_efficiency_score: number;
-  crm_data_score: number;
-  automation_score: number;
-  pagesWithNoForms: number;
-}) {
-  const {
-    hasBooking,
-    hasPhone,
-    hasEmail,
-    totalForms,
-    response_efficiency_score,
-    crm_data_score,
-    automation_score,
-    pagesWithNoForms,
-  } = params;
-
-  const matrix: Record<
-    string,
-    { title: string; description: string; impact: string }
-  > = {};
-
-  if (!hasBooking) {
-    matrix.booking_path = {
-      title: "Booking Pathway",
-      description:
-        "Add a visible booking or appointment pathway for high-intent visitors.",
-      impact: "Improves conversion from ready-to-act prospects.",
-    };
-  }
-
-  if (hasPhone) {
-    matrix.missed_call_recovery = {
-      title: "Missed Call Recovery",
-      description:
-        "Deploy instant SMS text-back and callback workflow for unanswered calls.",
-      impact: "Recovers high-intent leads that would otherwise go cold.",
-    };
-  }
-
-  if (totalForms > 0) {
-    matrix.form_acknowledgement = {
-      title: "Form Acknowledgement",
-      description:
-        "Send immediate confirmation and next-step messaging after website form submission.",
-      impact: "Reduces drop-off after initial enquiry.",
-    };
-  }
-
-  if (pagesWithNoForms > 0) {
-    matrix.capture_coverage = {
-      title: "Contact Coverage",
-      description:
-        "Introduce clearer contact opportunities on pages where visitors currently have no visible way to enquire.",
-      impact: "Reduces drop-off from visitors who are interested but not yet ready to call.",
-    };
-  }
-
-  if (response_efficiency_score < 12) {
-    matrix.first_touch_speed = {
-      title: "First-Touch Speed",
-      description:
-        "Introduce fast-response automation to engage new enquiries within minutes.",
-      impact: "Improves response speed while buyer intent is highest.",
-    };
-  }
-
-  if (crm_data_score < 12) {
-    matrix.crm_structure = {
-      title: "CRM Structure",
-      description:
-        "Improve data capture and pipeline visibility for enquiries and follow-up.",
-      impact: "Creates accountability and cleaner conversion tracking.",
-    };
-  }
-
-  if (automation_score < 12) {
-    matrix.follow_up_sequence = {
-      title: "Follow-Up Sequence",
-      description:
-        "Deploy a staged follow-up workflow across SMS, email, or call reminders.",
-      impact: "Ensures leads are not lost due to inconsistent manual follow-up.",
-    };
-  }
-
-  if (!hasEmail) {
-    matrix.email_capture = {
-      title: "Email Capture",
-      description:
-        "Add clearer email capture or contact pathways for lower-friction lead handling.",
-      impact: "Improves channel flexibility and follow-up options.",
-    };
-  }
-
-  if (Object.keys(matrix).length === 0) {
-    matrix.optimisation = {
-      title: "Conversion Optimisation",
-      description:
-        "Tighten response handling and follow-up consistency across existing channels.",
-      impact: "Lifts conversion without needing more lead volume.",
-    };
-  }
-
-  return matrix;
-}
-
-function buildImplementationBlueprint(params: {
-  hasPhone: boolean;
-  totalForms: number;
-  crm_data_score: number;
-  automation_score: number;
-  hasBooking: boolean;
-  pagesWithNoForms: number;
-}) {
-  const {
-    hasPhone,
-    totalForms,
-    crm_data_score,
-    automation_score,
-    hasBooking,
-    pagesWithNoForms,
-  } = params;
-
-  const phases: string[] = [];
-
-  phases.push(
-    "Phase 1 - clean up enquiry handling and define ownership of inbound responses."
-  );
-
-  if (pagesWithNoForms > 0) {
-    phases.push(
-      "Phase 2 - improve contact visibility on key pages so interested visitors always have a clear next step."
-    );
-  }
-
-  if (hasPhone) {
-    phases.push(
-      "Phase 3 - deploy missed-call recovery and fast first-touch response handling."
-    );
-  }
-
-  if (totalForms > 0) {
-    phases.push(
-      "Phase 4 - add instant acknowledgement and structured follow-up for website form enquiries."
-    );
-  }
-
-  if (crm_data_score < 12) {
-    phases.push("Phase 5 - improve CRM capture and data consistency.");
-  }
-
-  if (automation_score < 12) {
-    phases.push(
-      "Phase 6 - deploy core automations for acknowledgement, follow-up, and lead recovery."
-    );
-  }
-
-  if (!hasBooking) {
-    phases.push(
-      "Phase 7 - introduce a clearer booking or scheduling pathway for high-intent prospects."
-    );
-  }
-
-  phases.push(
-    "Final phase - assess suitability for Scaptra Engage managed deployment with AI-assisted response handling."
-  );
-
-  return `Recommended implementation path: ${phases.join(" ")}`;
-}
-
-function buildDetectedStack(params: {
-  hasPhone: boolean;
-  hasEmail: boolean;
-  hasBooking: boolean;
-  totalForms: number;
-  crm_data_score: number;
-}) {
-  const { hasPhone, hasEmail, hasBooking, totalForms, crm_data_score } = params;
-
-  return {
-    website_form: totalForms > 0 ? "Detected" : "Not detected",
-    live_chat: "Not detected",
-    ai_chatbot: "Not detected",
-    crm: crm_data_score >= 12 ? "Detected" : "Unclear",
-    missed_call_handling: "Not detected",
-    after_hours_response:
-      hasBooking || hasPhone ? "Possible / unconfirmed" : "Weak or not detected",
-    email_channel: hasEmail ? "Detected" : "Not detected",
-    phone_channel: hasPhone ? "Detected" : "Not detected",
-  };
-}
-
 function calculateScores(params: {
   totalPages: number;
   pagesWithNoForms: number;
@@ -711,6 +349,446 @@ function calculateScores(params: {
       titleCoverage,
       metaCoverage,
     },
+  };
+}
+
+function buildExecutiveSummary(params: {
+  businessName: string;
+  totalScore: number;
+  lead_capture_score: number;
+  response_efficiency_score: number;
+  crm_data_score: number;
+  automation_score: number;
+  ai_readiness_score: number;
+  hasBooking: boolean;
+  hasPhone: boolean;
+  hasEmail: boolean;
+  totalForms: number;
+  totalPages: number;
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+  pagesWithNoH1: number;
+  missingTitleCount: number;
+  missingMetaCount: number;
+}) {
+  const {
+    businessName,
+    totalScore,
+    lead_capture_score,
+    response_efficiency_score,
+    crm_data_score,
+    automation_score,
+    ai_readiness_score,
+    hasBooking,
+    hasPhone,
+    hasEmail,
+    totalForms,
+    totalPages,
+    pagesWithNoForms,
+    pagesWithNoButtons,
+    pagesWithNoH1,
+    missingTitleCount,
+    missingMetaCount,
+  } = params;
+
+  let readinessLevel = "moderate";
+  if (totalScore >= 75) readinessLevel = "strong";
+  else if (totalScore < 45) readinessLevel = "weak";
+
+  const strongestAreas: string[] = [];
+  const weakerAreas: string[] = [];
+
+  if (lead_capture_score >= 24) strongestAreas.push("contact visibility");
+  else weakerAreas.push("contact visibility");
+
+  if (response_efficiency_score >= 16) strongestAreas.push("response readiness");
+  else weakerAreas.push("response readiness");
+
+  if (crm_data_score >= 12) strongestAreas.push("basic follow-up structure");
+  else weakerAreas.push("follow-up structure");
+
+  if (automation_score >= 12) strongestAreas.push("automation foundations");
+  else weakerAreas.push("automation foundations");
+
+  const qualityFlags: string[] = [];
+  if (pagesWithNoForms > 0) {
+    qualityFlags.push(`${pagesWithNoForms} page(s) without visible enquiry forms`);
+  }
+  if (pagesWithNoButtons > 0) {
+    qualityFlags.push(`${pagesWithNoButtons} page(s) with weak action prompts`);
+  }
+  if (pagesWithNoH1 > 0) {
+    qualityFlags.push(`${pagesWithNoH1} page(s) lacking a clear main heading`);
+  }
+  if (missingTitleCount > 0) {
+    qualityFlags.push(`${missingTitleCount} page(s) missing title tags`);
+  }
+  if (missingMetaCount > 0) {
+    qualityFlags.push(`${missingMetaCount} page(s) missing meta descriptions`);
+  }
+
+  const channels = [
+    hasPhone ? "phone" : null,
+    hasEmail ? "email" : null,
+    hasBooking ? "booking" : null,
+    totalForms > 0 ? "website forms" : null,
+  ].filter(Boolean);
+
+  const strongText =
+    strongestAreas.length > 0
+      ? `The strongest area appears to be ${strongestAreas.join(" and ")}.`
+      : "";
+
+  const weakText =
+    weakerAreas.length > 0
+      ? `The main improvement opportunity appears to be ${weakerAreas
+          .slice(0, 2)
+          .join(" and ")}.`
+      : "";
+
+  const qualityText =
+    qualityFlags.length > 0
+      ? `During the review of ${totalPages} page(s), we noted ${qualityFlags.join(
+          ", "
+        )}.`
+      : `During the review of ${totalPages} page(s), there were no major structural red flags across headings, titles, or descriptions.`;
+
+  return `${businessName} currently shows a ${readinessLevel} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. The visible contact pathways on this site include ${channels.length > 0 ? channels.join(", ") : "limited contact options"}. ${strongText} ${weakText} ${qualityText}`.trim();
+}
+
+function buildEngagementFlowMap(params: {
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasBooking: boolean;
+  totalForms: number;
+  response_efficiency_score: number;
+  crm_data_score: number;
+  totalPages: number;
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+}) {
+  const {
+    hasEmail,
+    hasPhone,
+    hasBooking,
+    totalForms,
+    response_efficiency_score,
+    crm_data_score,
+    totalPages,
+    pagesWithNoForms,
+    pagesWithNoButtons,
+  } = params;
+
+  const channels: string[] = [];
+  if (hasPhone) channels.push("phone");
+  if (hasEmail) channels.push("email");
+  if (totalForms > 0) channels.push("website forms");
+  if (hasBooking) channels.push("booking path");
+
+  const contactPath =
+    channels.length > 0 ? channels.join(", ") : "very limited visible contact options";
+
+  let responseComment = "";
+  if (response_efficiency_score >= 18) {
+    responseComment =
+      "The route from interest to contact appears relatively direct for a visitor who is ready to act.";
+  } else if (response_efficiency_score >= 11) {
+    responseComment =
+      "A visitor can make contact, but the process is not as direct or immediate as it should be.";
+  } else {
+    responseComment =
+      "The route from interest to contact appears fragmented, which increases the chance of delay or drop-off.";
+  }
+
+  let frictionComment = "";
+  if (pagesWithNoForms > 0 || pagesWithNoButtons > 0) {
+    frictionComment = `Some pages do not make the next step especially clear, which can create hesitation before an enquiry is made.`;
+  } else {
+    frictionComment = `Most scanned pages provide at least one visible path toward contact or action.`;
+  }
+
+  const crmComment =
+    crm_data_score >= 12
+      ? "There are reasonable signs that enquiries could be captured and followed up in a structured way."
+      : "There are limited signs of structured capture or follow-up readiness behind the visible contact channels.";
+
+  return `Across ${totalPages} scanned page(s), the site appears to rely on ${contactPath}. ${responseComment} ${frictionComment} ${crmComment}`;
+}
+
+function buildLeadLeakageSummary(params: {
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasBooking: boolean;
+  pagesWithNoH1: number;
+  missingTitleCount: number;
+  missingMetaCount: number;
+  totalPages: number;
+}) {
+  const {
+    pagesWithNoForms,
+    pagesWithNoButtons,
+    hasEmail,
+    hasPhone,
+    hasBooking,
+    pagesWithNoH1,
+    missingTitleCount,
+    missingMetaCount,
+    totalPages,
+  } = params;
+
+  const issues: string[] = [];
+
+  if (!hasPhone) {
+    issues.push("phone contact is not clearly visible");
+  }
+
+  if (!hasEmail) {
+    issues.push("email contact is not clearly visible");
+  }
+
+  if (!hasBooking) {
+    issues.push("there is no clear booking or appointment pathway");
+  }
+
+  if (pagesWithNoForms > 0) {
+    issues.push(`${pagesWithNoForms} page(s) do not show a visible form`);
+  }
+
+  if (pagesWithNoButtons > 0) {
+    issues.push(`${pagesWithNoButtons} page(s) have weak prompts to take action`);
+  }
+
+  if (pagesWithNoH1 > 0) {
+    issues.push(`${pagesWithNoH1} page(s) lack a clear main heading`);
+  }
+
+  if (missingTitleCount > 0) {
+    issues.push(`${missingTitleCount} page(s) are missing title tags`);
+  }
+
+  if (missingMetaCount > 0) {
+    issues.push(`${missingMetaCount} page(s) are missing meta descriptions`);
+  }
+
+  if (issues.length === 0) {
+    return `Across ${totalPages} scanned page(s), the main risk appears to come from general inconsistency rather than one major failure point. The site shows workable contact paths, but there is still likely some leakage where enquiries are not captured or followed up as strongly as they could be.`;
+  }
+
+  return `The main areas where enquiries may be slipping through are: ${issues.join(
+    ", "
+  )}. These are the kinds of gaps that often reduce the number of visitors who turn into real enquiries.`;
+}
+
+function buildAutomationOpportunityMatrix(params: {
+  hasBooking: boolean;
+  hasPhone: boolean;
+  hasEmail: boolean;
+  totalForms: number;
+  response_efficiency_score: number;
+  crm_data_score: number;
+  automation_score: number;
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+}) {
+  const {
+    hasBooking,
+    hasPhone,
+    hasEmail,
+    totalForms,
+    response_efficiency_score,
+    crm_data_score,
+    automation_score,
+    pagesWithNoForms,
+    pagesWithNoButtons,
+  } = params;
+
+  const matrix: Record<
+    string,
+    { title: string; description: string; impact: string }
+  > = {};
+
+  if (!hasBooking) {
+    matrix.booking_path = {
+      title: "Make the next step more immediate",
+      description:
+        "Add a clearer booking or appointment option for visitors who are ready to act now.",
+      impact: "Helps convert high-intent visitors before they leave the site.",
+    };
+  }
+
+  if (hasPhone) {
+    matrix.missed_call_recovery = {
+      title: "Follow up missed calls automatically",
+      description:
+        "Use an instant text-back and callback process when calls are missed.",
+      impact: "Recovers high-intent enquiries that might otherwise go elsewhere.",
+    };
+  }
+
+  if (totalForms > 0) {
+    matrix.form_acknowledgement = {
+      title: "Acknowledge enquiries straight away",
+      description:
+        "Send immediate confirmation and next-step messaging after a form is submitted.",
+      impact: "Reduces drop-off after someone reaches out.",
+    };
+  }
+
+  if (pagesWithNoForms > 0) {
+    matrix.capture_coverage = {
+      title: "Improve contact access across the site",
+      description:
+        "Add clearer contact options on pages where a visitor currently has no obvious way to enquire.",
+      impact: "Makes it easier for interested visitors to take action from more pages.",
+    };
+  }
+
+  if (pagesWithNoButtons > 0) {
+    matrix.action_prompting = {
+      title: "Make action points more obvious",
+      description:
+        "Strengthen the wording and placement of prompts that guide visitors to call, enquire, or book.",
+      impact: "Improves the number of visitors who take the next step.",
+    };
+  }
+
+  if (response_efficiency_score < 12) {
+    matrix.first_touch_speed = {
+      title: "Improve first response speed",
+      description:
+        "Introduce faster first-touch handling so new enquiries are acknowledged within minutes rather than drifting.",
+      impact: "Improves conversion while interest is still high.",
+    };
+  }
+
+  if (crm_data_score < 12) {
+    matrix.crm_structure = {
+      title: "Create better follow-up visibility",
+      description:
+        "Improve contact capture and tracking so enquiries are not left without clear ownership.",
+      impact: "Creates stronger accountability and cleaner follow-up.",
+    };
+  }
+
+  if (automation_score < 12) {
+    matrix.follow_up_sequence = {
+      title: "Add a consistent follow-up sequence",
+      description:
+        "Introduce staged follow-up using SMS, email, or reminders so leads are not forgotten.",
+      impact: "Improves conversion from people who do not reply first time.",
+    };
+  }
+
+  if (!hasEmail) {
+    matrix.email_capture = {
+      title: "Add another easy way to respond",
+      description:
+        "Make email contact easier to find or capture, especially for visitors who are not ready to call immediately.",
+      impact: "Gives interested prospects another low-friction way to enquire.",
+    };
+  }
+
+  if (Object.keys(matrix).length === 0) {
+    matrix.optimisation = {
+      title: "Tighten enquiry handling",
+      description:
+        "Focus on faster response and more consistent follow-up across the contact methods already in place.",
+      impact: "Lifts conversion without needing more traffic.",
+    };
+  }
+
+  return matrix;
+}
+
+function buildImplementationBlueprint(params: {
+  hasPhone: boolean;
+  totalForms: number;
+  crm_data_score: number;
+  automation_score: number;
+  hasBooking: boolean;
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+}) {
+  const {
+    hasPhone,
+    totalForms,
+    crm_data_score,
+    automation_score,
+    hasBooking,
+    pagesWithNoForms,
+    pagesWithNoButtons,
+  } = params;
+
+  const phases: string[] = [];
+
+  phases.push(
+    "Start by cleaning up how enquiries are handled and making sure one person or process clearly owns the response."
+  );
+
+  if (pagesWithNoForms > 0 || pagesWithNoButtons > 0) {
+    phases.push(
+      "Then improve the visibility of contact options and make the next step clearer on weaker pages."
+    );
+  }
+
+  if (hasPhone) {
+    phases.push(
+      "Next, put missed-call recovery in place so phone enquiries do not go cold."
+    );
+  }
+
+  if (totalForms > 0) {
+    phases.push(
+      "After that, add instant acknowledgement and a clearer follow-up path for website form enquiries."
+    );
+  }
+
+  if (crm_data_score < 12) {
+    phases.push(
+      "Strengthen tracking and follow-up visibility so leads are not lost inside the process."
+    );
+  }
+
+  if (automation_score < 12) {
+    phases.push(
+      "Once the basics are working, add simple automation to improve speed and consistency without adding more admin."
+    );
+  }
+
+  if (!hasBooking) {
+    phases.push(
+      "Finally, introduce a stronger booking or appointment path for visitors who are ready to act immediately."
+    );
+  }
+
+  phases.push(
+    "From there, the business can assess whether a broader Scaptra Engage-style deployment would create further gains."
+  );
+
+  return phases.join(" ");
+}
+
+function buildDetectedStack(params: {
+  hasPhone: boolean;
+  hasEmail: boolean;
+  hasBooking: boolean;
+  totalForms: number;
+  crm_data_score: number;
+}) {
+  const { hasPhone, hasEmail, hasBooking, totalForms, crm_data_score } = params;
+
+  return {
+    website_form: totalForms > 0 ? "Detected" : "Not detected",
+    live_chat: "Not detected",
+    ai_chatbot: "Not detected",
+    crm: crm_data_score >= 12 ? "Detected" : "Unclear",
+    missed_call_handling: "Not detected",
+    after_hours_response:
+      hasBooking || hasPhone ? "Possible / unconfirmed" : "Weak or not detected",
+    email_channel: hasEmail ? "Detected" : "Not detected",
+    phone_channel: hasPhone ? "Detected" : "Not detected",
   };
 }
 
@@ -1178,6 +1256,12 @@ export async function POST(req: NextRequest) {
       hasPhone,
       hasEmail,
       totalForms,
+      totalPages,
+      pagesWithNoForms,
+      pagesWithNoButtons,
+      pagesWithNoH1,
+      missingTitleCount: missingTitleFindings.length,
+      missingMetaCount: missingMetaFindings.length,
     });
 
     const engagement_flow_map = buildEngagementFlowMap({
@@ -1188,6 +1272,8 @@ export async function POST(req: NextRequest) {
       response_efficiency_score,
       crm_data_score,
       totalPages,
+      pagesWithNoForms,
+      pagesWithNoButtons,
     });
 
     const lead_leakage_summary = buildLeadLeakageSummary({
@@ -1211,6 +1297,7 @@ export async function POST(req: NextRequest) {
       crm_data_score,
       automation_score,
       pagesWithNoForms,
+      pagesWithNoButtons,
     });
 
     const implementation_blueprint = buildImplementationBlueprint({
@@ -1220,6 +1307,7 @@ export async function POST(req: NextRequest) {
       automation_score,
       hasBooking,
       pagesWithNoForms,
+      pagesWithNoButtons,
     });
 
     const detected_stack = buildDetectedStack({
