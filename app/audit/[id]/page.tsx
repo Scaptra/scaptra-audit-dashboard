@@ -55,6 +55,23 @@ function normaliseOpportunities(
     .filter((item) => item.title || item.description || item.impact);
 }
 
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Date unavailable";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Date unavailable";
+
+  return new Intl.DateTimeFormat("en-AU", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function formatWebsite(value: string | null | undefined) {
+  if (!value) return "Website not available";
+  return value.replace(/^https?:\/\//i, "");
+}
+
 export default async function AuditReportPage({
   params,
 }: {
@@ -79,6 +96,39 @@ export default async function AuditReportPage({
     );
   }
 
+  let submission: any = null;
+  let business: any = null;
+
+  if (report.submission_id) {
+    const { data: submissionData } = await supabase
+      .from("audit_submissions")
+      .select("*")
+      .eq("id", report.submission_id)
+      .single();
+
+    submission = submissionData ?? null;
+
+    if (submission?.business_id) {
+      const { data: businessData } = await supabase
+        .from("businesses")
+        .select("*")
+        .eq("id", submission.business_id)
+        .single();
+
+      business = businessData ?? null;
+    }
+  }
+
+  const businessName =
+    business?.business_name ||
+    report.business_name ||
+    "Business Name Unavailable";
+
+  const website =
+    business?.website ||
+    report.website ||
+    "Website not available";
+
   const score = getDisplayScore(report);
   const scoreLabel = getScoreLabel(score);
   const opportunities = normaliseOpportunities(
@@ -89,24 +139,41 @@ export default async function AuditReportPage({
     <main style={styles.container}>
       <div style={styles.wrapper}>
         <div style={styles.header}>
-          <h1 style={styles.heading}>
-            Lead Leakage Audit for{" "}
-            <span style={{ color: "#38bdf8" }}>
-              {report.business_name || "Your Business"}
-            </span>
-          </h1>
+          <div style={styles.headerTop}>
+            <div>
+              <div style={styles.eyebrow}>Scaptra Audit Report</div>
+              <h1 style={styles.heading}>
+                Lead Leakage Audit for{" "}
+                <span style={{ color: "#38bdf8" }}>{businessName}</span>
+              </h1>
+              <p style={styles.sub}>
+                This report shows where potential customers may be dropping off,
+                and what to improve first.
+              </p>
+            </div>
 
-          <p style={styles.sub}>
-            This report shows where potential customers may be dropping off, and
-            what to improve first.
-          </p>
+            <div style={styles.referenceCard}>
+              <div style={styles.referenceLabel}>Report reference</div>
+              <div style={styles.referenceValue}>{report.id}</div>
+
+              <div style={{ ...styles.referenceLabel, marginTop: 14 }}>
+                Website reviewed
+              </div>
+              <div style={styles.referenceValue}>{formatWebsite(website)}</div>
+
+              <div style={{ ...styles.referenceLabel, marginTop: 14 }}>
+                Generated
+              </div>
+              <div style={styles.referenceValue}>
+                {formatDate(report.created_at)}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div style={styles.card}>
           <h2 style={styles.cardTitle}>Overall Score</h2>
-          <div style={styles.score}>
-            {score} / 100
-          </div>
+          <div style={styles.score}>{score} / 100</div>
           <p style={styles.textMuted}>
             {scoreLabel} — this score reflects how clearly your website guides
             people to contact you, and how well your current setup appears to
@@ -225,22 +292,56 @@ const styles: Record<string, React.CSSProperties> = {
       'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   wrapper: {
-    maxWidth: "900px",
+    maxWidth: "980px",
     margin: "0 auto",
   },
   header: {
     marginBottom: "30px",
   },
+  headerTop: {
+    display: "grid",
+    gridTemplateColumns: "1.4fr 0.9fr",
+    gap: "20px",
+    alignItems: "start",
+  },
+  eyebrow: {
+    color: "#38bdf8",
+    fontSize: "13px",
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: "10px",
+  },
   heading: {
     fontSize: "36px",
     fontWeight: 800,
     lineHeight: 1.15,
+    margin: 0,
   },
   sub: {
     color: "#94a3b8",
     marginTop: "10px",
     fontSize: "18px",
     lineHeight: 1.6,
+  },
+  referenceCard: {
+    background: "#0f172a",
+    border: "1px solid #1e293b",
+    borderRadius: "16px",
+    padding: "18px",
+  },
+  referenceLabel: {
+    color: "#94a3b8",
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.05em",
+    marginBottom: "6px",
+  },
+  referenceValue: {
+    color: "#f8fafc",
+    fontSize: "15px",
+    lineHeight: 1.5,
+    wordBreak: "break-word",
   },
   card: {
     background: "#0f172a",
