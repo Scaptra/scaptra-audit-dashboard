@@ -13,17 +13,16 @@ type OpportunityItem =
       impact?: string;
     };
 
-function getDisplayScore(report: any) {
-  if (typeof report.total_score === "number") return report.total_score;
-  return 62;
-}
-
 function getScoreLabel(score: number) {
   if (score >= 85) return "Strong";
   if (score >= 70) return "Good";
   if (score >= 50) return "Needs Improvement";
   return "High Risk";
 }
+<div style={{ color: "red", fontSize: "24px" }}>
+  VERSION 2 - TEST
+</div>
+
 
 function getFriendlySummary(report: any) {
   if (report.lead_leakage_summary) return report.lead_leakage_summary;
@@ -98,6 +97,7 @@ export default async function AuditReportPage({
 
   let submission: any = null;
   let business: any = null;
+  let scoreRow: any = null;
 
   if (report.submission_id) {
     const { data: submissionData } = await supabase
@@ -107,6 +107,14 @@ export default async function AuditReportPage({
       .single();
 
     submission = submissionData ?? null;
+
+    const { data: scoreData } = await supabase
+      .from("audit_scores")
+      .select("*")
+      .eq("submission_id", report.submission_id)
+      .single();
+
+    scoreRow = scoreData ?? null;
 
     if (submission?.business_id) {
       const { data: businessData } = await supabase
@@ -124,12 +132,15 @@ export default async function AuditReportPage({
     report.business_name ||
     "Business Name Unavailable";
 
-  const website =
-    business?.website ||
-    report.website ||
-    "Website not available";
+  const website = business?.website || report.website || "Website not available";
 
-  const score = getDisplayScore(report);
+  const score =
+    typeof scoreRow?.total_score === "number"
+      ? scoreRow.total_score
+      : typeof report.total_score === "number"
+      ? report.total_score
+      : 62;
+
   const scoreLabel = getScoreLabel(score);
   const opportunities = normaliseOpportunities(
     report.automation_opportunity_matrix
