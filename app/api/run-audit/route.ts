@@ -27,6 +27,14 @@ function getOrigin(input: string): string {
   return url.origin;
 }
 
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function round(value: number) {
+  return Math.round(value);
+}
+
 function extractInternalLinks(html: string, baseUrl: string): string[] {
   const matches = [...html.matchAll(/href=["']([^"'#]+)["']/gi)];
   const origin = getOrigin(baseUrl);
@@ -58,7 +66,9 @@ function extractInternalLinks(html: string, baseUrl: string): string[] {
         absolute.includes(".webp") ||
         absolute.includes(".woff") ||
         absolute.includes(".woff2") ||
-        absolute.includes(".ttf")
+        absolute.includes(".ttf") ||
+        absolute.includes(".pdf") ||
+        absolute.includes(".zip")
       ) {
         continue;
       }
@@ -146,6 +156,8 @@ function detectBookingWidget(html: string): boolean {
     "book a demo",
     "book demo",
     "appointment",
+    "reserve now",
+    "request a quote",
   ];
 
   return signals.some((signal) => lower.includes(signal));
@@ -158,6 +170,7 @@ function estimateRevenueLeak(params: {
   hasEmail: boolean;
   hasPhone: boolean;
   hasBooking: boolean;
+  totalScore: number;
 }) {
   const {
     totalPages,
@@ -166,47 +179,50 @@ function estimateRevenueLeak(params: {
     hasEmail,
     hasPhone,
     hasBooking,
+    totalScore,
   } = params;
 
-  let missedLeadsLow = 5;
-  let missedLeadsHigh = 15;
+  let missedLeadsLow = 4;
+  let missedLeadsHigh = 12;
 
-  if (totalPages >= 5) {
-    missedLeadsLow += 5;
-    missedLeadsHigh += 10;
-  }
+  missedLeadsLow += Math.max(0, totalPages - 2);
+  missedLeadsHigh += Math.max(0, totalPages - 2) * 2;
 
-  if (pagesWithNoForms > 0) {
-    missedLeadsLow += pagesWithNoForms * 2;
-    missedLeadsHigh += pagesWithNoForms * 4;
-  }
+  missedLeadsLow += pagesWithNoForms * 1.5;
+  missedLeadsHigh += pagesWithNoForms * 3;
 
-  if (pagesWithNoButtons > 0) {
-    missedLeadsLow += pagesWithNoButtons;
-    missedLeadsHigh += pagesWithNoButtons * 2;
-  }
+  missedLeadsLow += pagesWithNoButtons;
+  missedLeadsHigh += pagesWithNoButtons * 2;
 
   if (!hasEmail) {
     missedLeadsLow += 2;
-    missedLeadsHigh += 5;
+    missedLeadsHigh += 4;
   }
 
   if (!hasPhone) {
-    missedLeadsLow += 2;
-    missedLeadsHigh += 5;
+    missedLeadsLow += 3;
+    missedLeadsHigh += 6;
   }
 
   if (!hasBooking) {
     missedLeadsLow += 3;
-    missedLeadsHigh += 8;
+    missedLeadsHigh += 7;
   }
 
-  const estimatedRevenueLow = missedLeadsLow * 300;
-  const estimatedRevenueHigh = missedLeadsHigh * 600;
+  if (totalScore < 50) {
+    missedLeadsLow += 5;
+    missedLeadsHigh += 12;
+  } else if (totalScore < 70) {
+    missedLeadsLow += 2;
+    missedLeadsHigh += 5;
+  }
+
+  const estimatedRevenueLow = round(missedLeadsLow * 250);
+  const estimatedRevenueHigh = round(missedLeadsHigh * 550);
 
   return {
-    missedLeadsLow,
-    missedLeadsHigh,
+    missedLeadsLow: round(missedLeadsLow),
+    missedLeadsHigh: round(missedLeadsHigh),
     estimatedRevenueLow,
     estimatedRevenueHigh,
   };
@@ -217,40 +233,69 @@ function buildExecutiveSummary(params: {
   totalScore: number;
   lead_capture_score: number;
   response_efficiency_score: number;
+  crm_data_score: number;
   automation_score: number;
+  ai_readiness_score: number;
+  hasBooking: boolean;
+  hasPhone: boolean;
+  hasEmail: boolean;
+  totalForms: number;
 }) {
   const {
     businessName,
     totalScore,
     lead_capture_score,
     response_efficiency_score,
+    crm_data_score,
     automation_score,
+    ai_readiness_score,
+    hasBooking,
+    hasPhone,
+    hasEmail,
+    totalForms,
   } = params;
 
   let level = "moderate";
-  if (totalScore >= 70) level = "strong";
-  else if (totalScore < 50) level = "weak";
-
-  const responseComment =
-    response_efficiency_score >= 12
-      ? "response handling appears relatively strong"
-      : response_efficiency_score >= 8
-      ? "response handling shows some room for improvement"
-      : "response handling appears weak and likely contributes to lost enquiries";
+  if (totalScore >= 75) level = "strong";
+  else if (totalScore < 45) level = "weak";
 
   const captureComment =
-    lead_capture_score >= 45
-      ? "Lead capture channels are well represented"
-      : lead_capture_score >= 25
-      ? "Lead capture channels are present but incomplete"
-      : "Lead capture channels appear limited or inconsistent";
+    lead_capture_score >= 24
+      ? "Lead capture pathways are reasonably visible."
+      : lead_capture_score >= 15
+      ? "Lead capture is present, but there are clear gaps in how visitors are guided to make contact."
+      : "Lead capture pathways appear limited, which increases the chance of lost enquiries.";
+
+  const responseComment =
+    response_efficiency_score >= 18
+      ? "Response readiness appears relatively strong."
+      : response_efficiency_score >= 11
+      ? "Response handling shows room for improvement."
+      : "Response handling appears underdeveloped and likely contributes to missed opportunities.";
+
+  const crmComment =
+    crm_data_score >= 12
+      ? "Basic contact and tracking signals are present."
+      : "Tracking and structured follow-up signals appear limited.";
 
   const automationComment =
-    automation_score >= 10
-      ? "current automation coverage shows some useful foundations"
-      : "current automation coverage is limited";
+    automation_score >= 12
+      ? "There are some useful automation foundations in place."
+      : "Automation coverage appears limited or inconsistent.";
 
-  return `This business currently demonstrates a ${level} level of engagement readiness, with an overall score of ${totalScore} out of 100. ${captureComment}, ${responseComment}, and ${automationComment}. ${businessName} appears suitable for staged improvement through better enquiry management, stronger follow-up structure, and selective automation deployment.`;
+  const readinessComment =
+    ai_readiness_score >= 12
+      ? "The site shows reasonable readiness for more advanced automation."
+      : "The current setup would benefit from stronger fundamentals before more advanced automation is added.";
+
+  const channelSnapshot = [
+    hasPhone ? "phone contact is visible" : "phone contact is limited",
+    hasEmail ? "email is available" : "email is limited",
+    hasBooking ? "a booking path is present" : "no clear booking path was detected",
+    totalForms > 0 ? `${totalForms} form element(s) were detected` : "no visible forms were detected",
+  ].join(", ");
+
+  return `${businessName} currently demonstrates a ${level} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. ${captureComment} ${responseComment} ${crmComment} ${automationComment} ${readinessComment} On this review, ${channelSnapshot}.`;
 }
 
 function buildEngagementFlowMap(params: {
@@ -260,6 +305,7 @@ function buildEngagementFlowMap(params: {
   totalForms: number;
   response_efficiency_score: number;
   crm_data_score: number;
+  totalPages: number;
 }) {
   const {
     hasEmail,
@@ -268,30 +314,33 @@ function buildEngagementFlowMap(params: {
     totalForms,
     response_efficiency_score,
     crm_data_score,
+    totalPages,
   } = params;
 
   const channels: string[] = [];
   if (hasPhone) channels.push("phone");
   if (hasEmail) channels.push("email");
-  if (totalForms > 0) channels.push("website forms");
-  if (hasBooking) channels.push("booking flow");
+  if (totalForms > 0) channels.push("website form");
+  if (hasBooking) channels.push("booking path");
 
   const channelText =
-    channels.length > 0 ? channels.join(", ") : "limited visible contact channels";
+    channels.length > 0
+      ? channels.join(", ")
+      : "very limited visible contact options";
 
   const responseText =
-    response_efficiency_score >= 12
-      ? "Response handling appears relatively strong based on detected pathways."
-      : response_efficiency_score >= 8
-      ? "Response handling appears partly manual, with room for tighter speed and consistency."
-      : "Response handling appears weak or manual, with slow or inconsistent first-touch coverage likely.";
+    response_efficiency_score >= 18
+      ? "The path from interest to contact appears relatively direct."
+      : response_efficiency_score >= 11
+      ? "Visitors can make contact, but the path is not as clear or immediate as it should be."
+      : "The path from interest to contact appears weak or fragmented, which can slow response and reduce conversions.";
 
   const crmText =
-    crm_data_score >= 10
-      ? "Basic CRM or structured data capture signals are present."
-      : "CRM and structured data capture signals appear limited or inconsistent.";
+    crm_data_score >= 12
+      ? "There are signs of structured capture or follow-up readiness."
+      : "There are limited signs of structured data capture or follow-up readiness.";
 
-  return `Current engagement flow: enquiries are received through ${channelText}. ${responseText} ${crmText}`;
+  return `Across ${totalPages} scanned page(s), the site appears to rely on ${channelText}. ${responseText} ${crmText}`;
 }
 
 function buildLeadLeakageSummary(params: {
@@ -303,6 +352,7 @@ function buildLeadLeakageSummary(params: {
   pagesWithNoH1: number;
   missingTitleCount: number;
   missingMetaCount: number;
+  totalPages: number;
 }) {
   const {
     pagesWithNoForms,
@@ -313,6 +363,7 @@ function buildLeadLeakageSummary(params: {
     pagesWithNoH1,
     missingTitleCount,
     missingMetaCount,
+    totalPages,
   } = params;
 
   const risks: string[] = [];
@@ -324,10 +375,10 @@ function buildLeadLeakageSummary(params: {
     risks.push(`${pagesWithNoForms} scanned page(s) have no visible form capture`);
   }
   if (pagesWithNoButtons > 0) {
-    risks.push(`${pagesWithNoButtons} scanned page(s) show weak or missing button-driven CTAs`);
+    risks.push(`${pagesWithNoButtons} scanned page(s) show weak or missing button-driven prompts to take action`);
   }
   if (pagesWithNoH1 > 0) {
-    risks.push(`${pagesWithNoH1} page(s) have weak structural clarity with no H1`);
+    risks.push(`${pagesWithNoH1} page(s) have weak page clarity with no clear main heading`);
   }
   if (missingTitleCount > 0) {
     risks.push(`${missingTitleCount} page(s) are missing title tags`);
@@ -337,7 +388,7 @@ function buildLeadLeakageSummary(params: {
   }
 
   if (risks.length === 0) {
-    return "Primary lead leakage risks appear moderate rather than severe, but there is still likely conversion loss through inconsistent follow-up and under-structured enquiry handling.";
+    return `Across ${totalPages} scanned page(s), the main lead leakage risk appears to be inconsistency rather than a single major failure point. The site has usable contact signals, but there is still likely conversion loss through slower follow-up or under-structured enquiry handling.`;
   }
 
   return `Primary lead leakage risks include ${risks.join(", ")}. These issues are likely reducing conversion from existing enquiry traffic.`;
@@ -351,6 +402,7 @@ function buildAutomationOpportunityMatrix(params: {
   response_efficiency_score: number;
   crm_data_score: number;
   automation_score: number;
+  pagesWithNoForms: number;
 }) {
   const {
     hasBooking,
@@ -360,6 +412,7 @@ function buildAutomationOpportunityMatrix(params: {
     response_efficiency_score,
     crm_data_score,
     automation_score,
+    pagesWithNoForms,
   } = params;
 
   const matrix: Record<
@@ -394,7 +447,16 @@ function buildAutomationOpportunityMatrix(params: {
     };
   }
 
-  if (response_efficiency_score < 10) {
+  if (pagesWithNoForms > 0) {
+    matrix.capture_coverage = {
+      title: "Contact Coverage",
+      description:
+        "Introduce clearer contact opportunities on pages where visitors currently have no visible way to enquire.",
+      impact: "Reduces drop-off from visitors who are interested but not yet ready to call.",
+    };
+  }
+
+  if (response_efficiency_score < 12) {
     matrix.first_touch_speed = {
       title: "First-Touch Speed",
       description:
@@ -403,7 +465,7 @@ function buildAutomationOpportunityMatrix(params: {
     };
   }
 
-  if (crm_data_score < 10) {
+  if (crm_data_score < 12) {
     matrix.crm_structure = {
       title: "CRM Structure",
       description:
@@ -412,7 +474,7 @@ function buildAutomationOpportunityMatrix(params: {
     };
   }
 
-  if (automation_score < 10) {
+  if (automation_score < 12) {
     matrix.follow_up_sequence = {
       title: "Follow-Up Sequence",
       description:
@@ -448,35 +510,60 @@ function buildImplementationBlueprint(params: {
   crm_data_score: number;
   automation_score: number;
   hasBooking: boolean;
+  pagesWithNoForms: number;
 }) {
-  const { hasPhone, totalForms, crm_data_score, automation_score, hasBooking } =
-    params;
+  const {
+    hasPhone,
+    totalForms,
+    crm_data_score,
+    automation_score,
+    hasBooking,
+    pagesWithNoForms,
+  } = params;
 
   const phases: string[] = [];
 
-  phases.push("Phase 1 - clean up enquiry handling and define ownership of inbound responses.");
+  phases.push(
+    "Phase 1 - clean up enquiry handling and define ownership of inbound responses."
+  );
+
+  if (pagesWithNoForms > 0) {
+    phases.push(
+      "Phase 2 - improve contact visibility on key pages so interested visitors always have a clear next step."
+    );
+  }
 
   if (hasPhone) {
-    phases.push("Phase 2 - deploy missed-call recovery and fast first-touch response handling.");
+    phases.push(
+      "Phase 3 - deploy missed-call recovery and fast first-touch response handling."
+    );
   }
 
   if (totalForms > 0) {
-    phases.push("Phase 3 - add instant acknowledgement and structured follow-up for website form enquiries.");
+    phases.push(
+      "Phase 4 - add instant acknowledgement and structured follow-up for website form enquiries."
+    );
   }
 
-  if (crm_data_score < 10) {
-    phases.push("Phase 4 - improve CRM capture and data consistency.");
+  if (crm_data_score < 12) {
+    phases.push("Phase 5 - improve CRM capture and data consistency.");
   }
 
-  if (automation_score < 10) {
-    phases.push("Phase 5 - deploy core automations for acknowledgement, follow-up, and lead recovery.");
+  if (automation_score < 12) {
+    phases.push(
+      "Phase 6 - deploy core automations for acknowledgement, follow-up, and lead recovery."
+    );
   }
 
   if (!hasBooking) {
-    phases.push("Phase 6 - introduce a clearer booking or scheduling pathway for high-intent prospects.");
+    phases.push(
+      "Phase 7 - introduce a clearer booking or scheduling pathway for high-intent prospects."
+    );
   }
 
-  phases.push("Final phase - assess suitability for Scaptra Engage managed deployment with AI-assisted response handling.");
+  phases.push(
+    "Final phase - assess suitability for Scaptra Engage managed deployment with AI-assisted response handling."
+  );
 
   return `Recommended implementation path: ${phases.join(" ")}`;
 }
@@ -494,11 +581,136 @@ function buildDetectedStack(params: {
     website_form: totalForms > 0 ? "Detected" : "Not detected",
     live_chat: "Not detected",
     ai_chatbot: "Not detected",
-    crm: crm_data_score >= 10 ? "Detected" : "Unclear",
-    missed_call_handling: hasPhone ? "Not detected" : "Not detected",
-    after_hours_response: hasBooking || hasPhone ? "Possible / unconfirmed" : "Weak or not detected",
+    crm: crm_data_score >= 12 ? "Detected" : "Unclear",
+    missed_call_handling: "Not detected",
+    after_hours_response:
+      hasBooking || hasPhone ? "Possible / unconfirmed" : "Weak or not detected",
     email_channel: hasEmail ? "Detected" : "Not detected",
     phone_channel: hasPhone ? "Detected" : "Not detected",
+  };
+}
+
+function calculateScores(params: {
+  totalPages: number;
+  pagesWithNoForms: number;
+  pagesWithNoButtons: number;
+  pagesWithNoH1: number;
+  missingTitleCount: number;
+  missingMetaCount: number;
+  hasEmail: boolean;
+  hasPhone: boolean;
+  hasBooking: boolean;
+  totalForms: number;
+  totalButtons: number;
+}) {
+  const {
+    totalPages,
+    pagesWithNoForms,
+    pagesWithNoButtons,
+    pagesWithNoH1,
+    missingTitleCount,
+    missingMetaCount,
+    hasEmail,
+    hasPhone,
+    hasBooking,
+    totalForms,
+    totalButtons,
+  } = params;
+
+  const safeTotalPages = Math.max(totalPages, 1);
+
+  const formCoverage = clamp(
+    ((safeTotalPages - pagesWithNoForms) / safeTotalPages) * 100,
+    0,
+    100
+  );
+  const buttonCoverage = clamp(
+    ((safeTotalPages - pagesWithNoButtons) / safeTotalPages) * 100,
+    0,
+    100
+  );
+  const headingCoverage = clamp(
+    ((safeTotalPages - pagesWithNoH1) / safeTotalPages) * 100,
+    0,
+    100
+  );
+  const titleCoverage = clamp(
+    ((safeTotalPages - missingTitleCount) / safeTotalPages) * 100,
+    0,
+    100
+  );
+  const metaCoverage = clamp(
+    ((safeTotalPages - missingMetaCount) / safeTotalPages) * 100,
+    0,
+    100
+  );
+
+  let lead_capture_score = 0;
+  lead_capture_score += hasPhone ? 8 : 0;
+  lead_capture_score += hasEmail ? 6 : 0;
+  lead_capture_score += hasBooking ? 8 : 0;
+  lead_capture_score += totalForms > 0 ? 6 : 0;
+  lead_capture_score += round((formCoverage / 100) * 6);
+  lead_capture_score += round((buttonCoverage / 100) * 6);
+  lead_capture_score = clamp(lead_capture_score, 0, 40);
+
+  let response_efficiency_score = 0;
+  response_efficiency_score += hasBooking ? 8 : 0;
+  response_efficiency_score += hasPhone ? 5 : 0;
+  response_efficiency_score += totalButtons > 0 ? 3 : 0;
+  response_efficiency_score += round((buttonCoverage / 100) * 4);
+  response_efficiency_score += round((formCoverage / 100) * 5);
+  response_efficiency_score = clamp(response_efficiency_score, 0, 25);
+
+  let crm_data_score = 0;
+  crm_data_score += hasEmail ? 6 : 0;
+  crm_data_score += totalForms > 0 ? 5 : 0;
+  crm_data_score += round((titleCoverage / 100) * 2);
+  crm_data_score += round((metaCoverage / 100) * 2);
+  crm_data_score += round((headingCoverage / 100) * 3);
+  crm_data_score = clamp(crm_data_score, 0, 18);
+
+  let automation_score = 0;
+  automation_score += hasBooking ? 5 : 0;
+  automation_score += hasPhone ? 3 : 0;
+  automation_score += totalForms > 0 ? 4 : 0;
+  automation_score += round((formCoverage / 100) * 4);
+  automation_score += round((buttonCoverage / 100) * 2);
+  automation_score = clamp(automation_score, 0, 18);
+
+  let ai_readiness_score = 0;
+  ai_readiness_score += hasEmail ? 4 : 0;
+  ai_readiness_score += hasPhone ? 4 : 0;
+  ai_readiness_score += hasBooking ? 4 : 0;
+  ai_readiness_score += round((headingCoverage / 100) * 3);
+  ai_readiness_score += round((titleCoverage / 100) * 2);
+  ai_readiness_score += round((metaCoverage / 100) * 2);
+  ai_readiness_score = clamp(ai_readiness_score, 0, 17);
+
+  const total_score = clamp(
+    lead_capture_score +
+      response_efficiency_score +
+      crm_data_score +
+      automation_score +
+      ai_readiness_score,
+    0,
+    100
+  );
+
+  return {
+    lead_capture_score,
+    response_efficiency_score,
+    crm_data_score,
+    automation_score,
+    ai_readiness_score,
+    total_score,
+    coverage: {
+      formCoverage,
+      buttonCoverage,
+      headingCoverage,
+      titleCoverage,
+      metaCoverage,
+    },
   };
 }
 
@@ -902,36 +1114,27 @@ export async function POST(req: NextRequest) {
 
     const totalPages = pages?.length || 0;
 
-    let lead_capture_score = 0;
-    let response_efficiency_score = 0;
-    let crm_data_score = 0;
-    let automation_score = 0;
-    let ai_readiness_score = 0;
-
-    if (hasPhone) lead_capture_score += 15;
-    if (hasEmail) lead_capture_score += 10;
-    if (hasBooking) lead_capture_score += 20;
-    if (totalForms > 0) lead_capture_score += 25;
-
-    if (hasBooking) response_efficiency_score += 10;
-    if (hasPhone) response_efficiency_score += 5;
-
-    if (hasEmail) crm_data_score += 10;
-    if (hasPhone) crm_data_score += 5;
-
-    if (hasBooking) automation_score += 10;
-    if (totalForms > 0) automation_score += 5;
-
-    if (hasEmail) ai_readiness_score += 5;
-    if (hasPhone) ai_readiness_score += 5;
-    if (hasBooking) ai_readiness_score += 5;
-
-    const total_score =
-      lead_capture_score +
-      response_efficiency_score +
-      crm_data_score +
-      automation_score +
-      ai_readiness_score;
+    const {
+      lead_capture_score,
+      response_efficiency_score,
+      crm_data_score,
+      automation_score,
+      ai_readiness_score,
+      total_score,
+      coverage,
+    } = calculateScores({
+      totalPages,
+      pagesWithNoForms,
+      pagesWithNoButtons,
+      pagesWithNoH1,
+      missingTitleCount: missingTitleFindings.length,
+      missingMetaCount: missingMetaFindings.length,
+      hasEmail,
+      hasPhone,
+      hasBooking,
+      totalForms,
+      totalButtons,
+    });
 
     const revenueLeak = estimateRevenueLeak({
       totalPages,
@@ -940,6 +1143,7 @@ export async function POST(req: NextRequest) {
       hasEmail,
       hasPhone,
       hasBooking,
+      totalScore: total_score,
     });
 
     const scoring_notes = {
@@ -958,6 +1162,7 @@ export async function POST(req: NextRequest) {
         missing_titles: missingTitleFindings.length,
         missing_meta_descriptions: missingMetaFindings.length,
       },
+      coverage,
       revenue_leak_estimate: revenueLeak,
     };
 
@@ -966,7 +1171,13 @@ export async function POST(req: NextRequest) {
       totalScore: total_score,
       lead_capture_score,
       response_efficiency_score,
+      crm_data_score,
       automation_score,
+      ai_readiness_score,
+      hasBooking,
+      hasPhone,
+      hasEmail,
+      totalForms,
     });
 
     const engagement_flow_map = buildEngagementFlowMap({
@@ -976,6 +1187,7 @@ export async function POST(req: NextRequest) {
       totalForms,
       response_efficiency_score,
       crm_data_score,
+      totalPages,
     });
 
     const lead_leakage_summary = buildLeadLeakageSummary({
@@ -987,6 +1199,7 @@ export async function POST(req: NextRequest) {
       pagesWithNoH1,
       missingTitleCount: missingTitleFindings.length,
       missingMetaCount: missingMetaFindings.length,
+      totalPages,
     });
 
     const automation_opportunity_matrix = buildAutomationOpportunityMatrix({
@@ -997,6 +1210,7 @@ export async function POST(req: NextRequest) {
       response_efficiency_score,
       crm_data_score,
       automation_score,
+      pagesWithNoForms,
     });
 
     const implementation_blueprint = buildImplementationBlueprint({
@@ -1005,6 +1219,7 @@ export async function POST(req: NextRequest) {
       crm_data_score,
       automation_score,
       hasBooking,
+      pagesWithNoForms,
     });
 
     const detected_stack = buildDetectedStack({
@@ -1074,7 +1289,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "Failed to save audit report",
-          details: auditReportError?.message ?? "Unknown audit report insert error",
+          details:
+            auditReportError?.message ?? "Unknown audit report insert error",
         },
         { status: 500 }
       );
@@ -1110,6 +1326,14 @@ export async function POST(req: NextRequest) {
       },
       crawledPages,
       revenueLeak,
+      scoreSummary: {
+        lead_capture_score,
+        response_efficiency_score,
+        crm_data_score,
+        automation_score,
+        ai_readiness_score,
+        total_score,
+      },
       reportPreview: {
         executive_summary,
         engagement_flow_map,
