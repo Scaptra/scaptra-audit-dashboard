@@ -203,7 +203,7 @@ export default function AuditPage() {
           ) : null}
 
           <p className="text-xs text-gray-500 mt-4 text-center">
-            Your report will also be sent to your email.
+            Your report will open instantly after the audit completes.
           </p>
         </div>
       </div>
