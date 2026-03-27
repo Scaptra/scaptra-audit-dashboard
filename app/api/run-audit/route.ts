@@ -163,6 +163,46 @@ function detectBookingWidget(html: string): boolean {
   return signals.some((signal) => lower.includes(signal));
 }
 
+function detectProtectionBlock(params: {
+  status: number;
+  html: string;
+  headers?: Headers;
+}) {
+  const { status, html, headers } = params;
+  const lower = html.toLowerCase();
+  const serverHeader = headers?.get("server")?.toLowerCase() || "";
+
+  const signals = [
+    "verify you are human",
+    "security verification",
+    "checking your browser",
+    "attention required",
+    "cf-challenge",
+    "cloudflare",
+    "ddos protection",
+    "bot protection",
+    "protected against malicious bots",
+    "access denied",
+    "request blocked",
+  ];
+
+  const matchedSignals = signals.filter((signal) => lower.includes(signal));
+
+  const isCloudflare =
+    lower.includes("cloudflare") || serverHeader.includes("cloudflare");
+
+  const isProtected =
+    status === 403 ||
+    matchedSignals.length > 0 ||
+    lower.includes("verify you are human");
+
+  return {
+    isProtected,
+    provider: isCloudflare ? "Cloudflare" : "Website security protection",
+    matchedSignals,
+  };
+}
+
 function estimateRevenueLeak(params: {
   totalPages: number;
   pagesWithNoForms: number;
@@ -794,6 +834,229 @@ function buildDetectedStack(params: {
   };
 }
 
+function buildProtectedSiteSummary(params: {
+  businessName: string;
+  provider: string;
+}) {
+  const { businessName, provider } = params;
+
+  return `${businessName} appears to use ${provider} or similar anti-bot protection on the public website. That protection blocked a full automated scan before the main site content could be reviewed. This is not necessarily a negative sign for the business itself, but it means the results below are limited and should be treated as a partial audit rather than a complete website assessment.`;
+}
+
+function buildProtectedFlowMap(params: {
+  provider: string;
+}) {
+  const { provider } = params;
+
+  return `The public website presented a ${provider} verification or bot-protection layer before the main site content became available. Because of that, the automated scan could not reliably inspect the normal visitor journey from page view to enquiry action. A manual review or approved-access review is recommended if deeper analysis is required.`;
+}
+
+function buildProtectedLeakageSummary(params: {
+  provider: string;
+}) {
+  const { provider } = params;
+
+  return `A full lead-flow review could not be completed because the public site is protected by ${provider} or similar verification controls. That means the audit could not confirm how clearly the site presents contact options, call-to-action prompts, forms, or booking paths after the protection layer.`;
+}
+
+function buildProtectedOpportunityMatrix(params: {
+  provider: string;
+}) {
+  const { provider } = params;
+
+  return {
+    manual_review: {
+      title: "Run a manual review of the protected website",
+      description:
+        `The site appears to be behind ${provider} or similar bot protection, so a browser-based manual review is the right next step for deeper analysis.`,
+      impact:
+        "Allows the real contact paths, conversion journey, and trust signals to be assessed accurately.",
+    },
+    verify_lead_paths: {
+      title: "Verify public enquiry pathways after the challenge page",
+      description:
+        "Check how easy it is for a real visitor to find contact options, submit a form, or book once they pass the verification layer.",
+      impact:
+        "Confirms whether the protected site still makes the next step clear and easy for genuine visitors.",
+    },
+    response_process_review: {
+      title: "Review handling after the enquiry is made",
+      description:
+        "Even when a site is protected, the bigger risk is often what happens after a call, form, or missed enquiry reaches the business.",
+      impact:
+        "Finds operational gaps that reduce conversion after initial contact.",
+    },
+  };
+}
+
+function buildProtectedImplementationBlueprint() {
+  return "First confirm the real on-site enquiry journey with a manual browser review. Then assess how fast the business responds to calls, forms, and missed enquiries. After that, tighten follow-up ownership, response speed, and automation around the enquiry process rather than relying only on surface website signals.";
+}
+
+function buildProtectedDetectedStack(params: { provider: string }) {
+  const { provider } = params;
+
+  return {
+    website_form: "Unconfirmed due to protection layer",
+    live_chat: "Unconfirmed due to protection layer",
+    ai_chatbot: "Unconfirmed due to protection layer",
+    crm: "Unclear",
+    missed_call_handling: "Unclear",
+    after_hours_response: "Unconfirmed due to protection layer",
+    email_channel: "Unconfirmed due to protection layer",
+    phone_channel: "Unconfirmed due to protection layer",
+    website_protection: `${provider} detected`,
+  };
+}
+
+async function createProtectedSitePartialReport(params: {
+  submissionId: string;
+  businessId: string;
+  businessName: string;
+  websiteUrl: string;
+  scanId: string;
+  provider: string;
+  homepageStatus: number;
+  homepageHtml: string;
+  submittedName: string;
+  submittedEmail: string;
+  submittedPhone: string;
+  matchedSignals: string[];
+}) {
+  const {
+    submissionId,
+    businessId,
+    businessName,
+    websiteUrl,
+    scanId,
+    provider,
+    homepageStatus,
+    homepageHtml,
+    submittedName,
+    submittedEmail,
+    submittedPhone,
+    matchedSignals,
+  } = params;
+
+  const homepageTitle = extractTitle(homepageHtml);
+  const homepageDescription = extractMetaDescription(homepageHtml);
+
+  const lead_capture_score = 8;
+  const response_efficiency_score = 8;
+  const crm_data_score = 8;
+  const automation_score = 8;
+  const ai_readiness_score = 8;
+  const total_score = 40;
+
+  const revenueLeak = {
+    missedLeadsLow: 0,
+    missedLeadsHigh: 0,
+    estimatedRevenueLow: 0,
+    estimatedRevenueHigh: 0,
+  };
+
+  const scoring_notes = {
+    limited_scan: true,
+    limitation_type: "website_protection",
+    protection_provider: provider,
+    protection_matched_signals: matchedSignals,
+    homepage_status: homepageStatus,
+    homepage_title: homepageTitle,
+    homepage_meta_description: homepageDescription,
+    audit_summary: {
+      total_pages: 1,
+      pages_with_no_forms: 0,
+      pages_with_no_buttons: 0,
+      pages_with_no_h1: 0,
+      missing_titles: homepageTitle ? 0 : 1,
+      missing_meta_descriptions: homepageDescription ? 0 : 1,
+    },
+    coverage: {
+      formCoverage: 0,
+      buttonCoverage: 0,
+      headingCoverage: 0,
+      titleCoverage: homepageTitle ? 100 : 0,
+      metaCoverage: homepageDescription ? 100 : 0,
+    },
+    revenue_leak_estimate: revenueLeak,
+    submission_contact: {
+      name: submittedName || null,
+      email: submittedEmail || null,
+      phone: submittedPhone || null,
+    },
+    note:
+      "The public website returned a protection or verification page, so the audit result is limited and should not be treated as a full content-based score.",
+  };
+
+  const { error: scoreError } = await supabase.from("audit_scores").insert({
+    submission_id: submissionId,
+    lead_capture_score,
+    response_efficiency_score,
+    crm_data_score,
+    automation_score,
+    ai_readiness_score,
+    total_score,
+    scoring_notes,
+  });
+
+  if (scoreError) {
+    throw new Error(`Failed to save limited audit score: ${scoreError.message}`);
+  }
+
+  const reportPayload = {
+    submission_id: submissionId,
+    executive_summary: buildProtectedSiteSummary({
+      businessName,
+      provider,
+    }),
+    engagement_flow_map: buildProtectedFlowMap({ provider }),
+    lead_leakage_summary: buildProtectedLeakageSummary({ provider }),
+    automation_opportunity_matrix: buildProtectedOpportunityMatrix({ provider }),
+    implementation_blueprint: buildProtectedImplementationBlueprint(),
+    detected_stack: buildProtectedDetectedStack({ provider }),
+  };
+
+  const { data: reportData, error: reportError } = await supabase
+    .from("audit_reports")
+    .insert(reportPayload)
+    .select()
+    .single();
+
+  if (reportError || !reportData) {
+    throw new Error(
+      `Failed to save limited audit report: ${reportError?.message || "Unknown error"}`
+    );
+  }
+
+  await supabase
+    .from("website_scans")
+    .update({
+      scan_status: "completed",
+      scan_completed_at: new Date().toISOString(),
+    })
+    .eq("id", scanId);
+
+  await supabase
+    .from("audit_submissions")
+    .update({ status: "completed" })
+    .eq("id", submissionId);
+
+  return {
+    reportData,
+    homepageTitle,
+    homepageDescription,
+    revenueLeak,
+    scoreSummary: {
+      lead_capture_score,
+      response_efficiency_score,
+      crm_data_score,
+      automation_score,
+      ai_readiness_score,
+      total_score,
+    },
+  };
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -944,12 +1207,94 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const homepageResponse = await fetch(websiteUrl, {
-      headers: {
-        "User-Agent": "ScaptraAuditBot/1.0",
-      },
-      cache: "no-store",
+    let homepageResponse: Response;
+    try {
+      homepageResponse = await fetch(websiteUrl, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (compatible; ScaptraAuditBot/1.0; +https://audit.scaptra.ai)",
+          Accept:
+            "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "en-AU,en;q=0.9",
+          "Cache-Control": "no-cache",
+          Pragma: "no-cache",
+        },
+        cache: "no-store",
+        redirect: "follow",
+      });
+    } catch (fetchError) {
+      await supabase
+        .from("website_scans")
+        .update({
+          scan_status: "failed",
+          scan_completed_at: new Date().toISOString(),
+        })
+        .eq("id", scanRow.id);
+
+      await supabase
+        .from("audit_submissions")
+        .update({ status: "failed" })
+        .eq("id", submissionId);
+
+      return NextResponse.json(
+        {
+          error: "Failed to reach homepage",
+          details:
+            fetchError instanceof Error ? fetchError.message : "Unknown fetch error",
+        },
+        { status: 500 }
+      );
+    }
+
+    const homepageHtml = await homepageResponse.text();
+
+    const protectionCheck = detectProtectionBlock({
+      status: homepageResponse.status,
+      html: homepageHtml,
+      headers: homepageResponse.headers,
     });
+
+    if (protectionCheck.isProtected) {
+      const limitedResult = await createProtectedSitePartialReport({
+        submissionId,
+        businessId,
+        businessName,
+        websiteUrl,
+        scanId: scanRow.id,
+        provider: protectionCheck.provider,
+        homepageStatus: homepageResponse.status,
+        homepageHtml,
+        submittedName,
+        submittedEmail,
+        submittedPhone,
+        matchedSignals: protectionCheck.matchedSignals,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        limitedScan: true,
+        protectionDetected: true,
+        protectionProvider: protectionCheck.provider,
+        message:
+          "The website uses bot protection or human verification, so only a limited audit could be completed.",
+        id: limitedResult.reportData.id,
+        reportId: limitedResult.reportData.id,
+        auditId: limitedResult.reportData.id,
+        submissionId,
+        businessId,
+        businessName,
+        websiteUrl,
+        scanId: scanRow.id,
+        reportIdType: "audit_report",
+        homepage: {
+          status: homepageResponse.status,
+          title: limitedResult.homepageTitle,
+          metaDescription: limitedResult.homepageDescription,
+        },
+        scoreSummary: limitedResult.scoreSummary,
+        revenueLeak: limitedResult.revenueLeak,
+      });
+    }
 
     if (!homepageResponse.ok) {
       await supabase
@@ -970,8 +1315,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       );
     }
-
-    const homepageHtml = await homepageResponse.text();
 
     const homepageTitle = extractTitle(homepageHtml);
     const homepageDescription = extractMetaDescription(homepageHtml);
@@ -1011,22 +1354,35 @@ export async function POST(req: NextRequest) {
       try {
         const res = await fetch(url, {
           headers: {
-            "User-Agent": "ScaptraAuditBot/1.0",
+            "User-Agent":
+              "Mozilla/5.0 (compatible; ScaptraAuditBot/1.0; +https://audit.scaptra.ai)",
+            Accept:
+              "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-AU,en;q=0.9",
           },
           cache: "no-store",
+          redirect: "follow",
+        });
+
+        const html = await res.text();
+
+        const pageProtection = detectProtectionBlock({
+          status: res.status,
+          html,
+          headers: res.headers,
         });
 
         const status = res.status;
-        const html = res.ok ? await res.text() : "";
+        const useHtml = res.ok && !pageProtection.isProtected ? html : "";
 
-        const title = html ? extractTitle(html) : null;
-        const metaDescription = html ? extractMetaDescription(html) : null;
-        const h1Count = html ? countTag(html, "h1") : 0;
-        const formCount = html ? countTag(html, "form") : 0;
-        const buttonCount = html ? countTag(html, "button") : 0;
-        const emails = html ? extractEmails(html) : [];
-        const phones = html ? extractPhones(html) : [];
-        const bookingWidgetDetected = html ? detectBookingWidget(html) : false;
+        const title = useHtml ? extractTitle(useHtml) : null;
+        const metaDescription = useHtml ? extractMetaDescription(useHtml) : null;
+        const h1Count = useHtml ? countTag(useHtml, "h1") : 0;
+        const formCount = useHtml ? countTag(useHtml, "form") : 0;
+        const buttonCount = useHtml ? countTag(useHtml, "button") : 0;
+        const emails = useHtml ? extractEmails(useHtml) : [];
+        const phones = useHtml ? extractPhones(useHtml) : [];
+        const bookingWidgetDetected = useHtml ? detectBookingWidget(useHtml) : false;
 
         crawledPages.push({
           url,
@@ -1094,7 +1450,16 @@ export async function POST(req: NextRequest) {
           },
         ];
 
-        if (!title) {
+        if (pageProtection.isProtected) {
+          findings.push({
+            page_id: pageRow.id,
+            finding_type: "page_protected",
+            finding_value: pageProtection.provider,
+            finding_context: `This page presented ${pageProtection.provider} or similar verification before the normal page content could be scanned.`,
+          });
+        }
+
+        if (!title && !pageProtection.isProtected) {
           findings.push({
             page_id: pageRow.id,
             finding_type: "missing_title",
@@ -1103,7 +1468,7 @@ export async function POST(req: NextRequest) {
           });
         }
 
-        if (!metaDescription) {
+        if (!metaDescription && !pageProtection.isProtected) {
           findings.push({
             page_id: pageRow.id,
             finding_type: "missing_meta_description",
@@ -1255,6 +1620,7 @@ export async function POST(req: NextRequest) {
     });
 
     const scoring_notes = {
+      limited_scan: false,
       lead_capture_basis: {
         phone: hasPhone,
         email: hasEmail,
@@ -1435,19 +1801,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      id: submissionId,
-      auditId: submissionId,
+      limitedScan: false,
+      id: auditReportData.id,
+      reportId: auditReportData.id,
+      auditId: auditReportData.id,
       submissionId,
       businessId,
       businessName,
       websiteUrl,
-      submittedContact: {
-        name: submittedName || null,
-        email: submittedEmail || null,
-        phone: submittedPhone || null,
-      },
       scanId: scanRow.id,
-      reportId: auditReportData.id,
       homepage: {
         title: homepageTitle,
         metaDescription: homepageDescription,
@@ -1475,7 +1837,10 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("run-audit error:", error);
     return NextResponse.json(
-      { error: "Unexpected server error" },
+      {
+        error:
+          error instanceof Error ? error.message : "Unexpected server error",
+      },
       { status: 500 }
     );
   }
