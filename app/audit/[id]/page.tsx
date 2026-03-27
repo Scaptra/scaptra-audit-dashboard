@@ -19,10 +19,26 @@ function getScoreLabel(score: number) {
   if (score >= 50) return "Needs Improvement";
   return "High Risk";
 }
-<div style={{ color: "red", fontSize: "24px" }}>
-  VERSION 2 - TEST
-</div>
 
+function getScoreMessage(score: number) {
+  if (score >= 85) {
+    return "Your site shows solid enquiry-handling foundations, but there is still room to tighten response speed and follow-up.";
+  }
+  if (score >= 70) {
+    return "Your site is doing some things well, but there are clear gaps that could still cost you real enquiries.";
+  }
+  if (score >= 50) {
+    return "There are meaningful gaps in how your website captures and converts interest into enquiries.";
+  }
+  return "Your site is at high risk of losing enquiries because the next step is unclear, inconsistent, or too easy to miss.";
+}
+
+function getPriorityLabel(score: number) {
+  if (score >= 85) return "Optimise";
+  if (score >= 70) return "Improve";
+  if (score >= 50) return "Fix Soon";
+  return "Fix Now";
+}
 
 function getFriendlySummary(report: any) {
   if (report.lead_leakage_summary) return report.lead_leakage_summary;
@@ -69,6 +85,108 @@ function formatDate(value: string | null | undefined) {
 function formatWebsite(value: string | null | undefined) {
   if (!value) return "Website not available";
   return value.replace(/^https?:\/\//i, "");
+}
+
+function formatCurrency(value: number | null | undefined) {
+  if (typeof value !== "number" || Number.isNaN(value)) return null;
+  return new Intl.NumberFormat("en-AU", {
+    style: "currency",
+    currency: "AUD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function getRevenueLeak(scoreRow: any) {
+  const leak = scoreRow?.scoring_notes?.revenue_leak_estimate;
+  if (!leak || typeof leak !== "object") return null;
+  return leak;
+}
+
+function getTopIssues(report: any, scoreRow: any) {
+  const issues: string[] = [];
+
+  const notes = scoreRow?.scoring_notes?.audit_summary;
+  if (notes) {
+    if ((notes.pages_with_no_forms ?? 0) > 0) {
+      issues.push(
+        `${notes.pages_with_no_forms} page(s) do not show a visible enquiry form`
+      );
+    }
+    if ((notes.pages_with_no_buttons ?? 0) > 0) {
+      issues.push(
+        `${notes.pages_with_no_buttons} page(s) have weak or missing action prompts`
+      );
+    }
+    if ((notes.pages_with_no_h1 ?? 0) > 0) {
+      issues.push(
+        `${notes.pages_with_no_h1} page(s) lack a clear main heading`
+      );
+    }
+    if ((notes.missing_titles ?? 0) > 0) {
+      issues.push(`${notes.missing_titles} page(s) are missing title tags`);
+    }
+    if ((notes.missing_meta_descriptions ?? 0) > 0) {
+      issues.push(
+        `${notes.missing_meta_descriptions} page(s) are missing meta descriptions`
+      );
+    }
+  }
+
+  if (issues.length === 0 && report?.lead_leakage_summary) {
+    issues.push(report.lead_leakage_summary);
+  }
+
+  return issues.slice(0, 4);
+}
+
+function getScoreBreakdown(scoreRow: any) {
+  return [
+    {
+      label: "Lead Capture",
+      value:
+        typeof scoreRow?.lead_capture_score === "number"
+          ? scoreRow.lead_capture_score
+          : null,
+      max: 40,
+    },
+    {
+      label: "Response Efficiency",
+      value:
+        typeof scoreRow?.response_efficiency_score === "number"
+          ? scoreRow.response_efficiency_score
+          : null,
+      max: 25,
+    },
+    {
+      label: "CRM Data",
+      value:
+        typeof scoreRow?.crm_data_score === "number"
+          ? scoreRow.crm_data_score
+          : null,
+      max: 18,
+    },
+    {
+      label: "Automation",
+      value:
+        typeof scoreRow?.automation_score === "number"
+          ? scoreRow.automation_score
+          : null,
+      max: 18,
+    },
+    {
+      label: "AI Readiness",
+      value:
+        typeof scoreRow?.ai_readiness_score === "number"
+          ? scoreRow.ai_readiness_score
+          : null,
+      max: 17,
+    },
+  ];
+}
+
+function getBarWidth(value: number | null, max: number) {
+  if (typeof value !== "number" || max <= 0) return "0%";
+  return `${Math.max(0, Math.min(100, Math.round((value / max) * 100)))}%`;
 }
 
 export default async function AuditReportPage({
@@ -142,141 +260,254 @@ export default async function AuditReportPage({
       : 62;
 
   const scoreLabel = getScoreLabel(score);
+  const scoreMessage = getScoreMessage(score);
+  const priorityLabel = getPriorityLabel(score);
   const opportunities = normaliseOpportunities(
     report.automation_opportunity_matrix
   );
+  const topIssues = getTopIssues(report, scoreRow);
+  const revenueLeak = getRevenueLeak(scoreRow);
+  const scoreBreakdown = getScoreBreakdown(scoreRow);
+
+  const missedLeadsLow =
+    typeof revenueLeak?.missedLeadsLow === "number"
+      ? revenueLeak.missedLeadsLow
+      : null;
+  const missedLeadsHigh =
+    typeof revenueLeak?.missedLeadsHigh === "number"
+      ? revenueLeak.missedLeadsHigh
+      : null;
+
+  const revenueLow = formatCurrency(revenueLeak?.estimatedRevenueLow);
+  const revenueHigh = formatCurrency(revenueLeak?.estimatedRevenueHigh);
 
   return (
     <main style={styles.container}>
       <div style={styles.wrapper}>
-        <div style={styles.header}>
-          <div style={styles.headerTop}>
-            <div>
-              <div style={styles.eyebrow}>Scaptra Audit Report</div>
-              <h1 style={styles.heading}>
-                Lead Leakage Audit for{" "}
-                <span style={{ color: "#38bdf8" }}>{businessName}</span>
-              </h1>
-              <p style={styles.sub}>
-                This report shows where potential customers may be dropping off,
-                and what to improve first.
-              </p>
-            </div>
+        <section style={styles.hero}>
+          <div style={styles.heroLeft}>
+            <div style={styles.eyebrow}>Scaptra Audit Report</div>
+            <h1 style={styles.heading}>
+              {businessName} may be losing enquiries before they ever become real
+              conversations.
+            </h1>
+            <p style={styles.heroText}>
+              This report shows where friction, weak contact paths, and slower
+              response readiness may be costing you leads.
+            </p>
 
-            <div style={styles.referenceCard}>
-              <div style={styles.referenceLabel}>Report reference</div>
-              <div style={styles.referenceValue}>{report.id}</div>
-
-              <div style={{ ...styles.referenceLabel, marginTop: 14 }}>
-                Website reviewed
+            <div style={styles.infoGrid}>
+              <div style={styles.infoCard}>
+                <div style={styles.infoLabel}>Website reviewed</div>
+                <div style={styles.infoValue}>{formatWebsite(website)}</div>
               </div>
-              <div style={styles.referenceValue}>{formatWebsite(website)}</div>
 
-              <div style={{ ...styles.referenceLabel, marginTop: 14 }}>
-                Generated
+              <div style={styles.infoCard}>
+                <div style={styles.infoLabel}>Generated</div>
+                <div style={styles.infoValue}>
+                  {formatDate(report.created_at)}
+                </div>
               </div>
-              <div style={styles.referenceValue}>
-                {formatDate(report.created_at)}
+
+              <div style={styles.infoCard}>
+                <div style={styles.infoLabel}>Priority</div>
+                <div style={styles.infoValue}>{priorityLabel}</div>
+              </div>
+
+              <div style={styles.infoCard}>
+                <div style={styles.infoLabel}>Report reference</div>
+                <div style={styles.infoValue}>{report.id}</div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>Overall Score</h2>
-          <div style={styles.score}>{score} / 100</div>
-          <p style={styles.textMuted}>
-            {scoreLabel} — this score reflects how clearly your website guides
-            people to contact you, and how well your current setup appears to
-            support follow-up.
-          </p>
-        </div>
+          <div style={styles.scoreCard}>
+            <div style={styles.scoreLabel}>Overall Score</div>
+            <div style={styles.score}>{score} / 100</div>
+            <div style={styles.scorePill}>{scoreLabel}</div>
+            <p style={styles.scoreText}>{scoreMessage}</p>
+          </div>
+        </section>
 
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>Where enquiries may be slipping through</h2>
+        {(missedLeadsLow !== null ||
+          missedLeadsHigh !== null ||
+          revenueLow ||
+          revenueHigh) && (
+          <section style={styles.impactCard}>
+            <div style={styles.impactEyebrow}>Estimated commercial impact</div>
+            <h2 style={styles.sectionTitle}>
+              The issue is not just website quality. It is lost opportunity.
+            </h2>
+            <p style={styles.text}>
+              Based on the gaps detected, this site may be allowing potential
+              enquiries to drift away before they call, book, or submit a form.
+            </p>
 
-          <p style={styles.text}>
-            Our review found a few areas where potential customers may not be
-            taking the next step.
-          </p>
+            <div style={styles.impactGrid}>
+              <div style={styles.impactBox}>
+                <div style={styles.impactValue}>
+                  {missedLeadsLow !== null && missedLeadsHigh !== null
+                    ? `${missedLeadsLow}–${missedLeadsHigh}`
+                    : "—"}
+                </div>
+                <div style={styles.impactLabel}>
+                  Estimated missed leads range
+                </div>
+              </div>
 
+              <div style={styles.impactBox}>
+                <div style={styles.impactValue}>
+                  {revenueLow && revenueHigh ? `${revenueLow}–${revenueHigh}` : "—"}
+                </div>
+                <div style={styles.impactLabel}>
+                  Estimated revenue at risk
+                </div>
+              </div>
+            </div>
+
+            <p style={styles.textMuted}>
+              This is an estimate based on visible lead-capture, response, and
+              conversion gaps across the scanned pages. It is directional, but it
+              gives a useful view of what weak handling may be costing.
+            </p>
+          </section>
+        )}
+
+        <section style={styles.twoCol}>
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>What this score means</h2>
+            <p style={styles.text}>
+              A low score does not mean the business is weak. It usually means
+              there is demand coming in, but the path from interest to action is
+              not as clear, fast, or consistent as it should be.
+            </p>
+            <p style={styles.text}>
+              In practice, that means people may visit, look around, and even want
+              to make contact, but still leave because the next step feels unclear
+              or delayed.
+            </p>
+          </div>
+
+          <div style={styles.card}>
+            <h2 style={styles.cardTitle}>Where the biggest risk sits</h2>
+            {topIssues.length > 0 ? (
+              <ul style={styles.list}>
+                {topIssues.map((issue, index) => (
+                  <li key={index} style={styles.listItemCompact}>
+                    {issue}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p style={styles.text}>
+                The biggest risk appears to be general inconsistency in how the
+                site guides visitors toward contact and follow-up.
+              </p>
+            )}
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <h2 style={styles.cardTitle}>Lead leakage summary</h2>
           <p style={styles.text}>{getFriendlySummary(report)}</p>
-
           <p style={styles.text}>
-            These kinds of gaps often mean people are interested, but they do
-            not contact you because the next step is not clear or immediate.
+            These issues rarely look dramatic from the inside of a business, but
+            they quietly reduce conversion because interested people do not always
+            take the next step when response paths are weak or unclear.
           </p>
-        </div>
+        </section>
 
-        <div style={styles.card}>
-          <h2 style={styles.cardTitle}>Practical improvements to consider</h2>
+        <section style={styles.card}>
+          <h2 style={styles.cardTitle}>Score breakdown</h2>
+
+          <div style={styles.breakdownWrap}>
+            {scoreBreakdown.map((item) => (
+              <div key={item.label} style={styles.breakdownRow}>
+                <div style={styles.breakdownHeader}>
+                  <span style={styles.breakdownLabel}>{item.label}</span>
+                  <span style={styles.breakdownValue}>
+                    {typeof item.value === "number" ? `${item.value} / ${item.max}` : "—"}
+                  </span>
+                </div>
+                <div style={styles.barTrack}>
+                  <div
+                    style={{
+                      ...styles.barFill,
+                      width: getBarWidth(item.value, item.max),
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section style={styles.card}>
+          <h2 style={styles.cardTitle}>Best improvement opportunities</h2>
 
           {opportunities.length > 0 ? (
-            <ul style={styles.list}>
+            <div style={styles.opportunityGrid}>
               {opportunities.map((item, i) => (
-                <li key={i} style={styles.listItem}>
-                  <strong>{item.title}</strong>
+                <div key={i} style={styles.opportunityCard}>
+                  <div style={styles.opportunityTitle}>{item.title}</div>
                   {item.description ? (
-                    <>
-                      <br />
-                      <span style={styles.listText}>{item.description}</span>
-                    </>
+                    <p style={styles.opportunityText}>{item.description}</p>
                   ) : null}
                   {item.impact ? (
-                    <>
-                      <br />
-                      <span style={styles.impactText}>
-                        Why this matters: {item.impact}
-                      </span>
-                    </>
+                    <p style={styles.impactText}>Why this matters: {item.impact}</p>
                   ) : null}
-                </li>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <p style={styles.text}>
               There are opportunities to improve how enquiries are captured and
-              followed up, even if more advanced automation is added later.
+              followed up, even before more advanced automation is added.
             </p>
           )}
-        </div>
+        </section>
 
-        <div style={styles.card}>
+        <section style={styles.card}>
           <h2 style={styles.cardTitle}>Recommended next step</h2>
 
           <p style={styles.text}>
-            A simple way to improve results is to focus first on what happens
-            after someone shows interest.
+            The first move is not “do more marketing.” It is tightening what
+            happens after someone shows interest.
           </p>
 
           <p style={styles.text}>
-            Make sure every enquiry has a clear owner, receives a quick response,
-            and is followed up consistently.
+            Make sure every enquiry has a clear owner, receives a fast first
+            response, and is followed up consistently. That alone can lift results
+            without increasing traffic.
           </p>
 
           <p style={styles.text}>
-            Once that foundation is in place, automation can be added to improve
-            speed and consistency without increasing workload.
+            Once that foundation is in place, automation can improve speed,
+            consistency, and accountability without adding more admin work.
           </p>
 
           {report.implementation_blueprint ? (
-            <p style={styles.textMuted}>{report.implementation_blueprint}</p>
+            <div style={styles.blueprintBox}>
+              <div style={styles.blueprintLabel}>Implementation direction</div>
+              <p style={styles.blueprintText}>{report.implementation_blueprint}</p>
+            </div>
           ) : null}
-        </div>
+        </section>
 
-        <div style={styles.cta}>
+        <section style={styles.cta}>
+          <div style={styles.ctaEyebrow}>Next step</div>
           <h2 style={styles.ctaTitle}>
-            You’re already getting interest — the issue is what happens next.
+            You probably do not need more leads first. You need tighter handling
+            of the leads already reaching you.
           </h2>
 
           <p style={styles.ctaText}>
-            Most businesses don’t realise how many potential customers they lose
-            through missed calls, slow responses, or unclear next steps.
+            A short review call will walk through the findings, show where the
+            leaks are, and explain the fastest way to fix them.
           </p>
 
           <p style={styles.ctaText}>
-            A short call will walk through the findings and show you how to fix
-            these gaps quickly.
+            This is the point where an audit becomes action.
           </p>
 
           <a
@@ -285,9 +516,9 @@ export default async function AuditReportPage({
             rel="noreferrer"
             style={styles.button}
           >
-            Review My Audit With You
+            Book My Audit Review Call
           </a>
-        </div>
+        </section>
       </div>
     </main>
   );
@@ -298,22 +529,27 @@ const styles: Record<string, React.CSSProperties> = {
     minHeight: "100vh",
     background: "#020617",
     color: "#fff",
-    padding: "40px 20px",
+    padding: "40px 20px 56px",
     fontFamily:
       'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
   },
   wrapper: {
-    maxWidth: "980px",
+    maxWidth: "1100px",
     margin: "0 auto",
   },
-  header: {
-    marginBottom: "30px",
-  },
-  headerTop: {
+  hero: {
     display: "grid",
-    gridTemplateColumns: "1.4fr 0.9fr",
-    gap: "20px",
-    alignItems: "start",
+    gridTemplateColumns: "1.35fr 0.8fr",
+    gap: "24px",
+    alignItems: "stretch",
+    marginBottom: "24px",
+  },
+  heroLeft: {
+    background:
+      "linear-gradient(135deg, rgba(30,41,59,0.7) 0%, rgba(15,23,42,0.95) 100%)",
+    border: "1px solid #1e293b",
+    borderRadius: "24px",
+    padding: "28px",
   },
   eyebrow: {
     color: "#38bdf8",
@@ -324,113 +560,300 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "10px",
   },
   heading: {
-    fontSize: "36px",
+    fontSize: "42px",
     fontWeight: 800,
-    lineHeight: 1.15,
+    lineHeight: 1.08,
     margin: 0,
+    color: "#f8fafc",
   },
-  sub: {
-    color: "#94a3b8",
-    marginTop: "10px",
-    fontSize: "18px",
-    lineHeight: 1.6,
+  heroText: {
+    color: "#cbd5e1",
+    marginTop: "16px",
+    fontSize: "19px",
+    lineHeight: 1.7,
+    marginBottom: "22px",
   },
-  referenceCard: {
-    background: "#0f172a",
+  infoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "14px",
+  },
+  infoCard: {
+    background: "rgba(2,6,23,0.55)",
     border: "1px solid #1e293b",
     borderRadius: "16px",
-    padding: "18px",
+    padding: "16px",
   },
-  referenceLabel: {
+  infoLabel: {
     color: "#94a3b8",
-    fontSize: "13px",
+    fontSize: "12px",
     textTransform: "uppercase",
-    letterSpacing: "0.05em",
-    marginBottom: "6px",
+    letterSpacing: "0.06em",
+    marginBottom: "8px",
   },
-  referenceValue: {
+  infoValue: {
     color: "#f8fafc",
     fontSize: "15px",
     lineHeight: 1.5,
     wordBreak: "break-word",
   },
+  scoreCard: {
+    background:
+      "linear-gradient(180deg, rgba(56,189,248,0.12) 0%, rgba(15,23,42,0.95) 100%)",
+    border: "1px solid rgba(56,189,248,0.35)",
+    borderRadius: "24px",
+    padding: "28px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+  },
+  scoreLabel: {
+    color: "#bae6fd",
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginBottom: "10px",
+  },
+  score: {
+    fontSize: "64px",
+    fontWeight: 800,
+    color: "#38bdf8",
+    lineHeight: 1,
+    marginBottom: "14px",
+  },
+  scorePill: {
+    display: "inline-block",
+    alignSelf: "flex-start",
+    background: "rgba(56,189,248,0.15)",
+    border: "1px solid rgba(56,189,248,0.35)",
+    color: "#e0f2fe",
+    borderRadius: "999px",
+    padding: "8px 14px",
+    fontSize: "14px",
+    fontWeight: 700,
+    marginBottom: "16px",
+  },
+  scoreText: {
+    color: "#cbd5e1",
+    fontSize: "17px",
+    lineHeight: 1.7,
+    margin: 0,
+  },
+  impactCard: {
+    background: "#0f172a",
+    border: "1px solid #1e293b",
+    borderRadius: "20px",
+    padding: "24px",
+    marginBottom: "24px",
+  },
+  impactEyebrow: {
+    color: "#38bdf8",
+    fontSize: "13px",
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    marginBottom: "8px",
+  },
+  sectionTitle: {
+    fontSize: "30px",
+    margin: "0 0 14px",
+    color: "#f8fafc",
+    lineHeight: 1.2,
+  },
+  impactGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "16px",
+    marginTop: "18px",
+    marginBottom: "18px",
+  },
+  impactBox: {
+    background: "rgba(2,6,23,0.55)",
+    border: "1px solid #1e293b",
+    borderRadius: "18px",
+    padding: "20px",
+  },
+  impactValue: {
+    fontSize: "34px",
+    fontWeight: 800,
+    color: "#38bdf8",
+    lineHeight: 1.15,
+    marginBottom: "8px",
+  },
+  impactLabel: {
+    color: "#cbd5e1",
+    fontSize: "15px",
+    lineHeight: 1.5,
+  },
+  twoCol: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "20px",
+    marginBottom: "20px",
+  },
   card: {
     background: "#0f172a",
     border: "1px solid #1e293b",
-    borderRadius: "16px",
-    padding: "20px",
+    borderRadius: "20px",
+    padding: "24px",
     marginBottom: "20px",
   },
   cardTitle: {
-    fontSize: "28px",
-    marginBottom: "14px",
+    fontSize: "30px",
+    margin: "0 0 14px",
     color: "#f8fafc",
+    lineHeight: 1.2,
   },
   text: {
     color: "#cbd5e1",
-    lineHeight: 1.7,
+    lineHeight: 1.75,
     fontSize: "18px",
     margin: "0 0 14px",
   },
   textMuted: {
     color: "#94a3b8",
     lineHeight: 1.7,
-    fontSize: "16px",
-    marginTop: "12px",
+    fontSize: "15px",
+    marginTop: "6px",
+    marginBottom: 0,
   },
   list: {
-    paddingLeft: "20px",
+    paddingLeft: "22px",
     margin: 0,
   },
-  listItem: {
-    marginBottom: "18px",
+  listItemCompact: {
     color: "#f8fafc",
-    lineHeight: 1.6,
-    fontSize: "18px",
+    lineHeight: 1.7,
+    fontSize: "17px",
+    marginBottom: "12px",
   },
-  listText: {
+  breakdownWrap: {
+    display: "grid",
+    gap: "16px",
+  },
+  breakdownRow: {
+    display: "grid",
+    gap: "8px",
+  },
+  breakdownHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "14px",
+  },
+  breakdownLabel: {
+    color: "#f8fafc",
+    fontSize: "16px",
+    fontWeight: 600,
+  },
+  breakdownValue: {
+    color: "#94a3b8",
+    fontSize: "15px",
+  },
+  barTrack: {
+    width: "100%",
+    height: "12px",
+    background: "#1e293b",
+    borderRadius: "999px",
+    overflow: "hidden",
+  },
+  barFill: {
+    height: "100%",
+    borderRadius: "999px",
+    background: "linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)",
+  },
+  opportunityGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "16px",
+  },
+  opportunityCard: {
+    background: "rgba(2,6,23,0.55)",
+    border: "1px solid #1e293b",
+    borderRadius: "18px",
+    padding: "18px",
+  },
+  opportunityTitle: {
+    color: "#f8fafc",
+    fontSize: "20px",
+    fontWeight: 700,
+    lineHeight: 1.35,
+    marginBottom: "10px",
+  },
+  opportunityText: {
     color: "#cbd5e1",
+    fontSize: "16px",
+    lineHeight: 1.7,
+    margin: "0 0 10px",
   },
   impactText: {
     color: "#94a3b8",
-    fontSize: "16px",
+    fontSize: "15px",
+    lineHeight: 1.65,
+    margin: 0,
   },
-  score: {
-    fontSize: "52px",
-    fontWeight: 800,
-    color: "#38bdf8",
-    lineHeight: 1.1,
+  blueprintBox: {
+    marginTop: "10px",
+    background: "rgba(56,189,248,0.08)",
+    border: "1px solid rgba(56,189,248,0.22)",
+    borderRadius: "16px",
+    padding: "16px",
+  },
+  blueprintLabel: {
+    color: "#bae6fd",
+    fontSize: "12px",
+    textTransform: "uppercase",
+    letterSpacing: "0.06em",
+    marginBottom: "8px",
+  },
+  blueprintText: {
+    color: "#cbd5e1",
+    lineHeight: 1.7,
+    fontSize: "16px",
+    margin: 0,
   },
   cta: {
     marginTop: "30px",
-    padding: "30px",
-    background: "#020617",
-    border: "1px solid #38bdf8",
-    borderRadius: "20px",
+    padding: "32px",
+    background:
+      "linear-gradient(135deg, rgba(99,102,241,0.15) 0%, rgba(15,23,42,0.95) 50%, rgba(2,6,23,0.98) 100%)",
+    border: "1px solid #334155",
+    borderRadius: "24px",
     textAlign: "center",
+    boxShadow: "0 16px 48px rgba(0,0,0,0.28)",
+  },
+  ctaEyebrow: {
+    color: "#38bdf8",
+    fontSize: "13px",
+    textTransform: "uppercase",
+    letterSpacing: "0.08em",
+    marginBottom: "10px",
+    fontWeight: 700,
   },
   ctaTitle: {
-    fontSize: "28px",
+    fontSize: "32px",
     marginBottom: "14px",
     color: "#f8fafc",
-    lineHeight: 1.3,
+    lineHeight: 1.25,
+    marginTop: 0,
   },
   ctaText: {
-    color: "#94a3b8",
+    color: "#cbd5e1",
     marginBottom: "16px",
     fontSize: "18px",
-    lineHeight: 1.7,
+    lineHeight: 1.75,
   },
   button: {
     display: "inline-block",
-    padding: "14px 24px",
-    background: "#38bdf8",
+    padding: "16px 28px",
+    background: "linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)",
     color: "#020617",
-    fontWeight: 700,
-    borderRadius: "10px",
+    fontWeight: 800,
+    borderRadius: "12px",
     textDecoration: "none",
     fontSize: "18px",
     marginTop: "8px",
+    boxShadow: "0 12px 30px rgba(56,189,248,0.25)",
   },
   center: {
     minHeight: "100vh",
@@ -446,5 +869,11 @@ const styles: Record<string, React.CSSProperties> = {
   title: {
     fontSize: "28px",
     marginBottom: "10px",
+  },
+  sub: {
+    color: "#94a3b8",
+    marginTop: "10px",
+    fontSize: "18px",
+    lineHeight: 1.6,
   },
 };
