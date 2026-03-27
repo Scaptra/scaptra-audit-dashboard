@@ -502,9 +502,11 @@ function buildEngagementFlowMap(params: {
 
   let frictionComment = "";
   if (pagesWithNoForms > 0 || pagesWithNoButtons > 0) {
-    frictionComment = `Some pages do not make the next step especially clear, which can create hesitation before an enquiry is made.`;
+    frictionComment =
+      "Some pages do not make the next step especially clear, which can create hesitation before an enquiry is made.";
   } else {
-    frictionComment = `Most scanned pages provide at least one visible path toward contact or action.`;
+    frictionComment =
+      "Most scanned pages provide at least one visible path toward contact or action.";
   }
 
   const crmComment =
@@ -796,7 +798,33 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    let submissionId = body?.submissionId as string | undefined;
+    const submissionIdFromBody =
+      typeof body?.submissionId === "string" ? body.submissionId : undefined;
+
+    const submittedName =
+      typeof body?.name === "string" ? body.name.trim() : "";
+
+    const submittedBusiness =
+      typeof body?.business === "string"
+        ? body.business.trim()
+        : typeof body?.businessName === "string"
+        ? body.businessName.trim()
+        : "";
+
+    const submittedWebsite =
+      typeof body?.website === "string"
+        ? body.website.trim()
+        : typeof body?.url === "string"
+        ? body.url.trim()
+        : "";
+
+    const submittedEmail =
+      typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
+
+    const submittedPhone =
+      typeof body?.phone === "string" ? body.phone.trim() : "";
+
+    let submissionId = submissionIdFromBody;
     let businessId: string | undefined;
     let businessName: string | undefined;
     let websiteUrl: string | undefined;
@@ -829,15 +857,15 @@ export async function POST(req: NextRequest) {
       }
 
       businessId = business.id;
-      businessName = business.business_name ?? "Website Audit";
-      websiteUrl = business.website ?? undefined;
+      businessName = business.business_name ?? submittedBusiness ?? "Website Audit";
+      websiteUrl = business.website ?? submittedWebsite ?? undefined;
     } else {
-      businessName = body?.businessName?.trim();
-      websiteUrl = body?.website?.trim();
+      businessName = submittedBusiness;
+      websiteUrl = submittedWebsite;
 
       if (!businessName || !websiteUrl) {
         return NextResponse.json(
-          { error: "Missing businessName or website" },
+          { error: "Missing business/businessName or website/url" },
           { status: 400 }
         );
       }
@@ -863,13 +891,15 @@ export async function POST(req: NextRequest) {
 
       businessId = business.id;
 
+      const submissionInsertPayload: Record<string, unknown> = {
+        business_id: business.id,
+        status: "pending",
+        submission_source: "manual",
+      };
+
       const { data: submission, error: submissionInsertError } = await supabase
         .from("audit_submissions")
-        .insert({
-          business_id: business.id,
-          status: "pending",
-          submission_source: "manual",
-        })
+        .insert(submissionInsertPayload)
         .select()
         .single();
 
@@ -1242,6 +1272,11 @@ export async function POST(req: NextRequest) {
       },
       coverage,
       revenue_leak_estimate: revenueLeak,
+      submission_contact: {
+        name: submittedName || null,
+        email: submittedEmail || null,
+        phone: submittedPhone || null,
+      },
     };
 
     const executive_summary = buildExecutiveSummary({
@@ -1331,6 +1366,7 @@ export async function POST(req: NextRequest) {
 
     if (scoresError) {
       console.error("Failed to insert audit_scores:", scoresError);
+
       await supabase
         .from("audit_submissions")
         .update({ status: "failed" })
@@ -1399,10 +1435,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      id: submissionId,
       auditId: submissionId,
       submissionId,
       businessId,
+      businessName,
       websiteUrl,
+      submittedContact: {
+        name: submittedName || null,
+        email: submittedEmail || null,
+        phone: submittedPhone || null,
+      },
       scanId: scanRow.id,
       reportId: auditReportData.id,
       homepage: {
