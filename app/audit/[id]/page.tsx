@@ -13,14 +13,19 @@ type OpportunityItem =
       impact?: string;
     };
 
-function getScoreLabel(score: number) {
+function getScoreLabel(score: number, isProtected: boolean) {
+  if (isProtected) return "Limited Scan";
   if (score >= 85) return "Strong";
   if (score >= 70) return "Good";
   if (score >= 50) return "Needs Improvement";
   return "High Risk";
 }
 
-function getScoreMessage(score: number) {
+function getScoreMessage(score: number, isProtected: boolean) {
+  if (isProtected) {
+    return "This website appears to be protected by bot-verification or anti-automation controls, so only a limited audit could be completed.";
+  }
+
   if (score >= 85) {
     return "Your site shows solid enquiry-handling foundations, but there is still room to tighten response speed and follow-up.";
   }
@@ -33,7 +38,8 @@ function getScoreMessage(score: number) {
   return "Your site is at high risk of losing enquiries because the next step is unclear, inconsistent, or too easy to miss.";
 }
 
-function getPriorityLabel(score: number) {
+function getPriorityLabel(score: number, isProtected: boolean) {
+  if (isProtected) return "Manual Review";
   if (score >= 85) return "Optimise";
   if (score >= 70) return "Improve";
   if (score >= 50) return "Fix Soon";
@@ -102,7 +108,16 @@ function getRevenueLeak(scoreRow: any) {
   return leak;
 }
 
-function getTopIssues(report: any, scoreRow: any) {
+function getTopIssues(report: any, scoreRow: any, isProtected: boolean) {
+  if (isProtected) {
+    return [
+      "Full automated scan was limited by site protection or verification controls",
+      "The real visitor journey could not be reviewed beyond the protection layer",
+      "Contact paths, forms, and booking prompts should be checked manually",
+      "Follow-up handling after an enquiry is made should be reviewed directly",
+    ];
+  }
+
   const issues: string[] = [];
 
   const notes = scoreRow?.scoring_notes?.audit_summary;
@@ -139,7 +154,37 @@ function getTopIssues(report: any, scoreRow: any) {
   return issues.slice(0, 4);
 }
 
-function getScoreBreakdown(scoreRow: any) {
+function getScoreBreakdown(scoreRow: any, isProtected: boolean) {
+  if (isProtected) {
+    return [
+      {
+        label: "Lead Capture",
+        value: null,
+        max: 40,
+      },
+      {
+        label: "Response Efficiency",
+        value: null,
+        max: 25,
+      },
+      {
+        label: "CRM Data",
+        value: null,
+        max: 18,
+      },
+      {
+        label: "Automation",
+        value: null,
+        max: 18,
+      },
+      {
+        label: "AI Readiness",
+        value: null,
+        max: 17,
+      },
+    ];
+  }
+
   return [
     {
       label: "Lead Capture",
@@ -187,6 +232,17 @@ function getScoreBreakdown(scoreRow: any) {
 function getBarWidth(value: number | null, max: number) {
   if (typeof value !== "number" || max <= 0) return "0%";
   return `${Math.max(0, Math.min(100, Math.round((value / max) * 100)))}%`;
+}
+
+function isProtectedScan(scoreRow: any) {
+  return scoreRow?.scoring_notes?.limited_scan === true;
+}
+
+function getProtectedProvider(scoreRow: any) {
+  const provider = scoreRow?.scoring_notes?.protection_provider;
+  return typeof provider === "string" && provider.trim()
+    ? provider
+    : "website protection";
 }
 
 export default async function AuditReportPage({
@@ -252,22 +308,27 @@ export default async function AuditReportPage({
 
   const website = business?.website || report.website || "Website not available";
 
+  const isProtected = isProtectedScan(scoreRow);
+  const protectionProvider = getProtectedProvider(scoreRow);
+
   const score =
     typeof scoreRow?.total_score === "number"
       ? scoreRow.total_score
       : typeof report.total_score === "number"
       ? report.total_score
+      : isProtected
+      ? 40
       : 62;
 
-  const scoreLabel = getScoreLabel(score);
-  const scoreMessage = getScoreMessage(score);
-  const priorityLabel = getPriorityLabel(score);
+  const scoreLabel = getScoreLabel(score, isProtected);
+  const scoreMessage = getScoreMessage(score, isProtected);
+  const priorityLabel = getPriorityLabel(score, isProtected);
   const opportunities = normaliseOpportunities(
     report.automation_opportunity_matrix
   );
-  const topIssues = getTopIssues(report, scoreRow);
+  const topIssues = getTopIssues(report, scoreRow, isProtected);
   const revenueLeak = getRevenueLeak(scoreRow);
-  const scoreBreakdown = getScoreBreakdown(scoreRow);
+  const scoreBreakdown = getScoreBreakdown(scoreRow, isProtected);
 
   const missedLeadsLow =
     typeof revenueLeak?.missedLeadsLow === "number"
@@ -280,6 +341,13 @@ export default async function AuditReportPage({
 
   const revenueLow = formatCurrency(revenueLeak?.estimatedRevenueLow);
   const revenueHigh = formatCurrency(revenueLeak?.estimatedRevenueHigh);
+
+  const showEstimatedImpact =
+    !isProtected &&
+    (missedLeadsLow !== null ||
+      missedLeadsHigh !== null ||
+      revenueLow ||
+      revenueHigh);
 
   return (
     <main style={styles.container}>
@@ -325,67 +393,125 @@ export default async function AuditReportPage({
             <div style={styles.scoreLabel}>Overall Score</div>
             <div style={styles.score}>{score} / 100</div>
             <div style={styles.scorePill}>{scoreLabel}</div>
+            {isProtected ? (
+              <div style={styles.protectedBadge}>
+                Limited scan due to {protectionProvider}
+              </div>
+            ) : null}
             <p style={styles.scoreText}>{scoreMessage}</p>
           </div>
         </section>
 
-        {(missedLeadsLow !== null ||
-          missedLeadsHigh !== null ||
-          revenueLow ||
-          revenueHigh) && (
-          <section style={styles.impactCard}>
-            <div style={styles.impactEyebrow}>Estimated commercial impact</div>
-            <h2 style={styles.sectionTitle}>
-              The issue is not just website quality. It is lost opportunity.
-            </h2>
-            <p style={styles.text}>
-              Based on the gaps detected, this site may be allowing potential
-              enquiries to drift away before they call, book, or submit a form.
-            </p>
+        <section style={styles.impactCard}>
+          <div style={styles.impactEyebrow}>
+            {isProtected ? "Limited commercial estimate" : "Estimated commercial impact"}
+          </div>
+          <h2 style={styles.sectionTitle}>
+            The issue is not just website quality. It is lost opportunity.
+          </h2>
 
-            <div style={styles.impactGrid}>
-              <div style={styles.impactBox}>
-                <div style={styles.impactValue}>
-                  {missedLeadsLow !== null && missedLeadsHigh !== null
-                    ? `${missedLeadsLow}–${missedLeadsHigh}`
-                    : "—"}
+          {isProtected ? (
+            <>
+              <p style={styles.text}>
+                This website uses security protections that limit automated
+                scanning. As a result, lead-loss and revenue-at-risk estimates
+                cannot be calculated reliably from the public site alone.
+              </p>
+
+              <div style={styles.impactGrid}>
+                <div style={styles.impactBox}>
+                  <div style={styles.impactValueMuted}>Not estimated</div>
+                  <div style={styles.impactLabel}>
+                    Missed leads range
+                  </div>
                 </div>
-                <div style={styles.impactLabel}>
-                  Estimated missed leads range
+
+                <div style={styles.impactBox}>
+                  <div style={styles.impactValueMuted}>Manual review required</div>
+                  <div style={styles.impactLabel}>
+                    Revenue at risk
+                  </div>
                 </div>
               </div>
 
-              <div style={styles.impactBox}>
-                <div style={styles.impactValue}>
-                  {revenueLow && revenueHigh ? `${revenueLow}–${revenueHigh}` : "—"}
+              <p style={styles.textMuted}>
+                The public site presented {protectionProvider} or similar
+                verification before the main content became available. The next
+                step is a browser-based manual review of the real enquiry journey.
+              </p>
+            </>
+          ) : (
+            <>
+              <p style={styles.text}>
+                Based on the gaps detected, this site may be allowing potential
+                enquiries to drift away before they call, book, or submit a form.
+              </p>
+
+              <div style={styles.impactGrid}>
+                <div style={styles.impactBox}>
+                  <div style={styles.impactValue}>
+                    {showEstimatedImpact &&
+                    missedLeadsLow !== null &&
+                    missedLeadsHigh !== null
+                      ? `${missedLeadsLow}–${missedLeadsHigh}`
+                      : "—"}
+                  </div>
+                  <div style={styles.impactLabel}>
+                    Estimated missed leads range
+                  </div>
                 </div>
-                <div style={styles.impactLabel}>
-                  Estimated revenue at risk
+
+                <div style={styles.impactBox}>
+                  <div style={styles.impactValue}>
+                    {showEstimatedImpact && revenueLow && revenueHigh
+                      ? `${revenueLow}–${revenueHigh}`
+                      : "—"}
+                  </div>
+                  <div style={styles.impactLabel}>
+                    Estimated revenue at risk
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <p style={styles.textMuted}>
-              This is an estimate based on visible lead-capture, response, and
-              conversion gaps across the scanned pages. It is directional, but it
-              gives a useful view of what weak handling may be costing.
-            </p>
-          </section>
-        )}
+              <p style={styles.textMuted}>
+                This is an estimate based on visible lead-capture, response, and
+                conversion gaps across the scanned pages. It is directional, but it
+                gives a useful view of what weak handling may be costing.
+              </p>
+            </>
+          )}
+        </section>
 
         <section style={styles.twoCol}>
           <div style={styles.card}>
             <h2 style={styles.cardTitle}>What this score means</h2>
-            <p style={styles.text}>
-              A low score does not mean the business is weak. It usually means
-              there is demand coming in, but the path from interest to action is
-              not as clear, fast, or consistent as it should be.
-            </p>
-            <p style={styles.text}>
-              In practice, that means people may visit, look around, and even want
-              to make contact, but still leave because the next step feels unclear
-              or delayed.
-            </p>
+            {isProtected ? (
+              <>
+                <p style={styles.text}>
+                  A limited score does not mean the business has no issue. It
+                  means the public site could not be fully scanned because a
+                  protection layer blocked automated access.
+                </p>
+                <p style={styles.text}>
+                  In practice, the right next step is to manually review the real
+                  visitor journey after the verification page and then inspect
+                  what happens after enquiries are made.
+                </p>
+              </>
+            ) : (
+              <>
+                <p style={styles.text}>
+                  A low score does not mean the business is weak. It usually means
+                  there is demand coming in, but the path from interest to action
+                  is not as clear, fast, or consistent as it should be.
+                </p>
+                <p style={styles.text}>
+                  In practice, that means people may visit, look around, and even
+                  want to make contact, but still leave because the next step
+                  feels unclear or delayed.
+                </p>
+              </>
+            )}
           </div>
 
           <div style={styles.card}>
@@ -410,11 +536,20 @@ export default async function AuditReportPage({
         <section style={styles.card}>
           <h2 style={styles.cardTitle}>Lead leakage summary</h2>
           <p style={styles.text}>{getFriendlySummary(report)}</p>
-          <p style={styles.text}>
-            These issues rarely look dramatic from the inside of a business, but
-            they quietly reduce conversion because interested people do not always
-            take the next step when response paths are weak or unclear.
-          </p>
+          {isProtected ? (
+            <p style={styles.text}>
+              Because the protection layer blocked a full content review, this
+              result should be read as a constrained audit. The real risk may sit
+              in the actual post-verification visitor journey and in how the
+              business handles new enquiries once they arrive.
+            </p>
+          ) : (
+            <p style={styles.text}>
+              These issues rarely look dramatic from the inside of a business, but
+              they quietly reduce conversion because interested people do not
+              always take the next step when response paths are weak or unclear.
+            </p>
+          )}
         </section>
 
         <section style={styles.card}>
@@ -426,20 +561,33 @@ export default async function AuditReportPage({
                 <div style={styles.breakdownHeader}>
                   <span style={styles.breakdownLabel}>{item.label}</span>
                   <span style={styles.breakdownValue}>
-                    {typeof item.value === "number" ? `${item.value} / ${item.max}` : "—"}
+                    {isProtected
+                      ? "Limited visibility"
+                      : typeof item.value === "number"
+                      ? `${item.value} / ${item.max}`
+                      : "—"}
                   </span>
                 </div>
                 <div style={styles.barTrack}>
                   <div
                     style={{
                       ...styles.barFill,
-                      width: getBarWidth(item.value, item.max),
+                      width: isProtected ? "35%" : getBarWidth(item.value, item.max),
+                      opacity: isProtected ? 0.45 : 1,
                     }}
                   />
                 </div>
               </div>
             ))}
           </div>
+
+          {isProtected ? (
+            <p style={styles.textMutedWithTop}>
+              These categories are shown as limited visibility because the normal
+              page content could not be scanned reliably after the protection
+              layer.
+            </p>
+          ) : null}
         </section>
 
         <section style={styles.card}>
@@ -477,8 +625,8 @@ export default async function AuditReportPage({
 
           <p style={styles.text}>
             Make sure every enquiry has a clear owner, receives a fast first
-            response, and is followed up consistently. That alone can lift results
-            without increasing traffic.
+            response, and is followed up consistently. That alone can lift
+            results without increasing traffic.
           </p>
 
           <p style={styles.text}>
@@ -631,6 +779,18 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 14px",
     fontSize: "14px",
     fontWeight: 700,
+    marginBottom: "12px",
+  },
+  protectedBadge: {
+    display: "inline-block",
+    alignSelf: "flex-start",
+    background: "rgba(251,191,36,0.12)",
+    border: "1px solid rgba(251,191,36,0.35)",
+    color: "#fde68a",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "13px",
+    fontWeight: 700,
     marginBottom: "16px",
   },
   scoreText: {
@@ -680,6 +840,13 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.15,
     marginBottom: "8px",
   },
+  impactValueMuted: {
+    fontSize: "26px",
+    fontWeight: 800,
+    color: "#f8fafc",
+    lineHeight: 1.2,
+    marginBottom: "8px",
+  },
   impactLabel: {
     color: "#cbd5e1",
     fontSize: "15px",
@@ -715,6 +882,13 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.7,
     fontSize: "15px",
     marginTop: "6px",
+    marginBottom: 0,
+  },
+  textMutedWithTop: {
+    color: "#94a3b8",
+    lineHeight: 1.7,
+    fontSize: "15px",
+    marginTop: "14px",
     marginBottom: 0,
   },
   list: {
