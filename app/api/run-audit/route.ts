@@ -163,6 +163,13 @@ function detectBookingWidget(html: string): boolean {
   return signals.some((signal) => lower.includes(signal));
 }
 
+/**
+ * Important:
+ * Do NOT classify a site as protected merely because "cloudflare" appears
+ * somewhere in the HTML. Many normal sites include Cloudflare assets/scripts.
+ *
+ * Only flag protection when there are strong challenge signals or a 403.
+ */
 function detectProtectionBlock(params: {
   status: number;
   html: string;
@@ -172,34 +179,38 @@ function detectProtectionBlock(params: {
   const lower = html.toLowerCase();
   const serverHeader = headers?.get("server")?.toLowerCase() || "";
 
-  const signals = [
-    "verify you are human",
-    "security verification",
-    "checking your browser",
+  const challengeSignals = [
     "attention required",
+    "verify you are human",
+    "checking your browser",
     "cf-challenge",
-    "cloudflare",
-    "ddos protection",
-    "bot protection",
+    "challenge-platform",
     "protected against malicious bots",
+    "please stand by while we are checking your browser",
+    "security verification",
     "access denied",
-    "request blocked",
   ];
 
-  const matchedSignals = signals.filter((signal) => lower.includes(signal));
+  const matchedSignals = challengeSignals.filter((signal) =>
+    lower.includes(signal)
+  );
 
-  const isCloudflare =
-    lower.includes("cloudflare") || serverHeader.includes("cloudflare");
+  const isChallengePage = matchedSignals.length > 0;
+  const isProtected = status === 403 || isChallengePage;
 
-  const isProtected =
-    status === 403 ||
-    matchedSignals.length > 0 ||
-    lower.includes("verify you are human");
+  let provider = "Website security protection";
+  if (
+    serverHeader.includes("cloudflare") &&
+    (status === 403 || isChallengePage)
+  ) {
+    provider = "Cloudflare";
+  }
 
   return {
     isProtected,
-    provider: isCloudflare ? "Cloudflare" : "Website security protection",
+    provider,
     matchedSignals,
+    isChallengePage,
   };
 }
 
@@ -925,9 +936,7 @@ async function createProtectedSitePartialReport(params: {
 }) {
   const {
     submissionId,
-    businessId,
     businessName,
-    websiteUrl,
     scanId,
     provider,
     homepageStatus,
