@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { sendAuditReportEmail } from "@/app/lib/send-audit-report-email";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -163,13 +164,6 @@ function detectBookingWidget(html: string): boolean {
   return signals.some((signal) => lower.includes(signal));
 }
 
-/**
- * Important:
- * Do NOT classify a site as protected merely because "cloudflare" appears
- * somewhere in the HTML. Many normal sites include Cloudflare assets/scripts.
- *
- * Only flag protection when there are strong challenge signals or a 403.
- */
 function detectProtectionBlock(params: {
   status: number;
   html: string;
@@ -504,7 +498,9 @@ function buildExecutiveSummary(params: {
         )}.`
       : `During the review of ${totalPages} page(s), there were no major structural red flags across headings, titles, or descriptions.`;
 
-  return `${businessName} currently shows a ${readinessLevel} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. The visible contact pathways on this site include ${channels.length > 0 ? channels.join(", ") : "limited contact options"}. ${strongText} ${weakText} ${qualityText}`.trim();
+  return `${businessName} currently shows a ${readinessLevel} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. The visible contact pathways on this site include ${
+    channels.length > 0 ? channels.join(", ") : "limited contact options"
+  }. ${strongText} ${weakText} ${qualityText}`.trim();
 }
 
 function buildEngagementFlowMap(params: {
@@ -593,34 +589,21 @@ function buildLeadLeakageSummary(params: {
 
   const issues: string[] = [];
 
-  if (!hasPhone) {
-    issues.push("phone contact is not clearly visible");
-  }
-
-  if (!hasEmail) {
-    issues.push("email contact is not clearly visible");
-  }
-
-  if (!hasBooking) {
-    issues.push("there is no clear booking or appointment pathway");
-  }
-
+  if (!hasPhone) issues.push("phone contact is not clearly visible");
+  if (!hasEmail) issues.push("email contact is not clearly visible");
+  if (!hasBooking) issues.push("there is no clear booking or appointment pathway");
   if (pagesWithNoForms > 0) {
     issues.push(`${pagesWithNoForms} page(s) do not show a visible form`);
   }
-
   if (pagesWithNoButtons > 0) {
     issues.push(`${pagesWithNoButtons} page(s) have weak prompts to take action`);
   }
-
   if (pagesWithNoH1 > 0) {
     issues.push(`${pagesWithNoH1} page(s) lack a clear main heading`);
   }
-
   if (missingTitleCount > 0) {
     issues.push(`${missingTitleCount} page(s) are missing title tags`);
   }
-
   if (missingMetaCount > 0) {
     issues.push(`${missingMetaCount} page(s) are missing meta descriptions`);
   }
@@ -922,9 +905,7 @@ function buildProtectedDetectedStack(params: { provider: string }) {
 
 async function createProtectedSitePartialReport(params: {
   submissionId: string;
-  businessId: string;
   businessName: string;
-  websiteUrl: string;
   scanId: string;
   provider: string;
   homepageStatus: number;
@@ -1012,22 +993,19 @@ async function createProtectedSitePartialReport(params: {
     throw new Error(`Failed to save limited audit score: ${scoreError.message}`);
   }
 
-  const reportPayload = {
-    submission_id: submissionId,
-    executive_summary: buildProtectedSiteSummary({
-      businessName,
-      provider,
-    }),
-    engagement_flow_map: buildProtectedFlowMap({ provider }),
-    lead_leakage_summary: buildProtectedLeakageSummary({ provider }),
-    automation_opportunity_matrix: buildProtectedOpportunityMatrix({ provider }),
-    implementation_blueprint: buildProtectedImplementationBlueprint(),
-    detected_stack: buildProtectedDetectedStack({ provider }),
-  };
-
   const { data: reportData, error: reportError } = await supabase
     .from("audit_reports")
-    .insert(reportPayload)
+    .insert({
+      submission_id: submissionId,
+      executive_summary: buildProtectedSiteSummary({ businessName, provider }),
+      engagement_flow_map: buildProtectedFlowMap({ provider }),
+      lead_leakage_summary: buildProtectedLeakageSummary({ provider }),
+      automation_opportunity_matrix: buildProtectedOpportunityMatrix({
+        provider,
+      }),
+      implementation_blueprint: buildProtectedImplementationBlueprint(),
+      detected_stack: buildProtectedDetectedStack({ provider }),
+    })
     .select()
     .single();
 
@@ -1163,15 +1141,13 @@ export async function POST(req: NextRequest) {
 
       businessId = business.id;
 
-      const submissionInsertPayload: Record<string, unknown> = {
-        business_id: business.id,
-        status: "pending",
-        submission_source: "manual",
-      };
-
       const { data: submission, error: submissionInsertError } = await supabase
         .from("audit_submissions")
-        .insert(submissionInsertPayload)
+        .insert({
+          business_id: business.id,
+          status: "pending",
+          submission_source: "manual",
+        })
         .select()
         .single();
 
@@ -1266,9 +1242,7 @@ export async function POST(req: NextRequest) {
     if (protectionCheck.isProtected) {
       const limitedResult = await createProtectedSitePartialReport({
         submissionId,
-        businessId,
         businessName,
-        websiteUrl,
         scanId: scanRow.id,
         provider: protectionCheck.provider,
         homepageStatus: homepageResponse.status,
@@ -1278,6 +1252,23 @@ export async function POST(req: NextRequest) {
         submittedPhone,
         matchedSignals: protectionCheck.matchedSignals,
       });
+
+      const limitedReportUrl = `${
+        process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
+      }/audit/${limitedResult.reportData.id}`;
+
+      if (submittedEmail) {
+        try {
+          await sendAuditReportEmail({
+            to: submittedEmail,
+            businessName,
+            reportUrl: limitedReportUrl,
+            isLimitedScan: true,
+          });
+        } catch (emailError) {
+          console.error("Failed to send limited audit email:", emailError);
+        }
+      }
 
       return NextResponse.json({
         ok: true,
@@ -1391,7 +1382,9 @@ export async function POST(req: NextRequest) {
         const buttonCount = useHtml ? countTag(useHtml, "button") : 0;
         const emails = useHtml ? extractEmails(useHtml) : [];
         const phones = useHtml ? extractPhones(useHtml) : [];
-        const bookingWidgetDetected = useHtml ? detectBookingWidget(useHtml) : false;
+        const bookingWidgetDetected = useHtml
+          ? detectBookingWidget(useHtml)
+          : false;
 
         crawledPages.push({
           url,
@@ -1753,19 +1746,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const auditReportPayload = {
-      submission_id: submissionId,
-      executive_summary,
-      engagement_flow_map,
-      lead_leakage_summary,
-      automation_opportunity_matrix,
-      implementation_blueprint,
-      detected_stack,
-    };
-
     const { data: auditReportData, error: auditReportError } = await supabase
       .from("audit_reports")
-      .insert(auditReportPayload)
+      .insert({
+        submission_id: submissionId,
+        executive_summary,
+        engagement_flow_map,
+        lead_leakage_summary,
+        automation_opportunity_matrix,
+        implementation_blueprint,
+        detected_stack,
+      })
       .select()
       .single();
 
@@ -1807,6 +1798,23 @@ export async function POST(req: NextRequest) {
       .from("audit_submissions")
       .update({ status: "completed" })
       .eq("id", submissionId);
+
+    const fullReportUrl = `${
+      process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
+    }/audit/${auditReportData.id}`;
+
+    if (submittedEmail) {
+      try {
+        await sendAuditReportEmail({
+          to: submittedEmail,
+          businessName,
+          reportUrl: fullReportUrl,
+          isLimitedScan: false,
+        });
+      } catch (emailError) {
+        console.error("Failed to send audit email:", emailError);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
