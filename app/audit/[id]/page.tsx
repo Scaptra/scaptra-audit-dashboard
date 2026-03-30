@@ -157,31 +157,11 @@ function getTopIssues(report: any, scoreRow: any, isProtected: boolean) {
 function getScoreBreakdown(scoreRow: any, isProtected: boolean) {
   if (isProtected) {
     return [
-      {
-        label: "Lead Capture",
-        value: null,
-        max: 40,
-      },
-      {
-        label: "Response Efficiency",
-        value: null,
-        max: 25,
-      },
-      {
-        label: "CRM Data",
-        value: null,
-        max: 18,
-      },
-      {
-        label: "Automation",
-        value: null,
-        max: 18,
-      },
-      {
-        label: "AI Readiness",
-        value: null,
-        max: 17,
-      },
+      { label: "Lead Capture", value: null, max: 40 },
+      { label: "Response Efficiency", value: null, max: 25 },
+      { label: "CRM Data", value: null, max: 18 },
+      { label: "Automation", value: null, max: 18 },
+      { label: "AI Readiness", value: null, max: 17 },
     ];
   }
 
@@ -243,6 +223,46 @@ function getProtectedProvider(scoreRow: any) {
   return typeof provider === "string" && provider.trim()
     ? provider
     : "website protection";
+}
+
+function getRevenueMeaningText(params: {
+  isProtected: boolean;
+  businessName: string;
+  missedLeadsLow: number | null;
+  missedLeadsHigh: number | null;
+}) {
+  const { isProtected, businessName, missedLeadsLow, missedLeadsHigh } = params;
+
+  if (isProtected) {
+    return `${businessName} is harder to assess from the public site alone because automated scanning was limited. That does not remove the risk — it means the next step should be a manual review of the real enquiry journey and what happens after someone reaches out.`;
+  }
+
+  if (
+    typeof missedLeadsLow === "number" &&
+    typeof missedLeadsHigh === "number"
+  ) {
+    return `If even part of this estimated range is accurate, the issue is no longer just website quality. It is a commercial handling problem that can quietly cost enquiries, appointments, and revenue every month.`;
+  }
+
+  return `Even without a precise estimate, the signs point to friction in the path from interest to enquiry. That usually means some opportunities are being lost before a real conversation ever starts.`;
+}
+
+function getFixItems(isProtected: boolean) {
+  if (isProtected) {
+    return [
+      "Manually review the real visitor journey after the protection layer",
+      "Check how quickly calls, forms, and missed enquiries are handled",
+      "Tighten ownership so every enquiry has a clear next action",
+      "Add follow-up systems so interest does not go cold",
+    ];
+  }
+
+  return [
+    "Capture missed calls and website enquiries automatically",
+    "Respond instantly instead of relying on delayed manual follow-up",
+    "Follow up leads consistently until they convert or clearly opt out",
+    "Make sure every real opportunity is seen, tracked, and handled",
+  ];
 }
 
 export default async function AuditReportPage({
@@ -349,6 +369,14 @@ export default async function AuditReportPage({
       revenueLow ||
       revenueHigh);
 
+  const fixItems = getFixItems(isProtected);
+  const revenueMeaningText = getRevenueMeaningText({
+    isProtected,
+    businessName,
+    missedLeadsLow,
+    missedLeadsHigh,
+  });
+
   return (
     <main style={styles.container}>
       <div style={styles.wrapper}>
@@ -404,7 +432,9 @@ export default async function AuditReportPage({
 
         <section style={styles.impactCard}>
           <div style={styles.impactEyebrow}>
-            {isProtected ? "Limited commercial estimate" : "Estimated commercial impact"}
+            {isProtected
+              ? "Limited commercial estimate"
+              : "Estimated commercial impact"}
           </div>
           <h2 style={styles.sectionTitle}>
             The issue is not just website quality. It is lost opportunity.
@@ -421,16 +451,12 @@ export default async function AuditReportPage({
               <div style={styles.impactGrid}>
                 <div style={styles.impactBox}>
                   <div style={styles.impactValueMuted}>Not estimated</div>
-                  <div style={styles.impactLabel}>
-                    Missed leads range
-                  </div>
+                  <div style={styles.impactLabel}>Missed leads range</div>
                 </div>
 
                 <div style={styles.impactBox}>
                   <div style={styles.impactValueMuted}>Manual review required</div>
-                  <div style={styles.impactLabel}>
-                    Revenue at risk
-                  </div>
+                  <div style={styles.impactLabel}>Revenue at risk</div>
                 </div>
               </div>
 
@@ -475,10 +501,27 @@ export default async function AuditReportPage({
 
               <p style={styles.textMuted}>
                 This is an estimate based on visible lead-capture, response, and
-                conversion gaps across the scanned pages. It is directional, but it
-                gives a useful view of what weak handling may be costing.
+                conversion gaps across the scanned pages. It is directional, but
+                it gives a useful view of what weak handling may be costing.
               </p>
             </>
+          )}
+        </section>
+
+        <section style={styles.card}>
+          <h2 style={styles.cardTitle}>What this means for your business</h2>
+          <p style={styles.text}>{revenueMeaningText}</p>
+          {!isProtected ? (
+            <p style={styles.text}>
+              Most businesses do not need more leads first. They need tighter
+              handling of the leads already reaching them.
+            </p>
+          ) : (
+            <p style={styles.text}>
+              Protected sites still lose enquiries when response ownership is
+              weak, follow-up is slow, or no one checks what happens after the
+              first contact.
+            </p>
           )}
         </section>
 
@@ -501,14 +544,14 @@ export default async function AuditReportPage({
             ) : (
               <>
                 <p style={styles.text}>
-                  A low score does not mean the business is weak. It usually means
-                  there is demand coming in, but the path from interest to action
-                  is not as clear, fast, or consistent as it should be.
+                  A low score does not mean the business is weak. It usually
+                  means there is demand coming in, but the path from interest to
+                  action is not as clear, fast, or consistent as it should be.
                 </p>
                 <p style={styles.text}>
-                  In practice, that means people may visit, look around, and even
-                  want to make contact, but still leave because the next step
-                  feels unclear or delayed.
+                  In practice, that means people may visit, look around, and
+                  even want to make contact, but still leave because the next
+                  step feels unclear or delayed.
                 </p>
               </>
             )}
@@ -539,15 +582,16 @@ export default async function AuditReportPage({
           {isProtected ? (
             <p style={styles.text}>
               Because the protection layer blocked a full content review, this
-              result should be read as a constrained audit. The real risk may sit
-              in the actual post-verification visitor journey and in how the
+              result should be read as a constrained audit. The real risk may
+              sit in the actual post-verification visitor journey and in how the
               business handles new enquiries once they arrive.
             </p>
           ) : (
             <p style={styles.text}>
-              These issues rarely look dramatic from the inside of a business, but
-              they quietly reduce conversion because interested people do not
-              always take the next step when response paths are weak or unclear.
+              These issues rarely look dramatic from the inside of a business,
+              but they quietly reduce conversion because interested people do
+              not always take the next step when response paths are weak or
+              unclear.
             </p>
           )}
         </section>
@@ -572,7 +616,9 @@ export default async function AuditReportPage({
                   <div
                     style={{
                       ...styles.barFill,
-                      width: isProtected ? "35%" : getBarWidth(item.value, item.max),
+                      width: isProtected
+                        ? "35%"
+                        : getBarWidth(item.value, item.max),
                       opacity: isProtected ? 0.45 : 1,
                     }}
                   />
@@ -583,11 +629,29 @@ export default async function AuditReportPage({
 
           {isProtected ? (
             <p style={styles.textMutedWithTop}>
-              These categories are shown as limited visibility because the normal
-              page content could not be scanned reliably after the protection
-              layer.
+              These categories are shown as limited visibility because the
+              normal page content could not be scanned reliably after the
+              protection layer.
             </p>
           ) : null}
+        </section>
+
+        <section style={styles.card}>
+          <h2 style={styles.cardTitle}>How this gets fixed</h2>
+          <p style={styles.text}>
+            The goal is not to add more complexity. It is to make sure every
+            real opportunity is seen, responded to quickly, and followed up
+            consistently.
+          </p>
+
+          <div style={styles.fixGrid}>
+            {fixItems.map((item) => (
+              <div key={item} style={styles.fixCard}>
+                <div style={styles.fixCheck}>✓</div>
+                <div style={styles.fixText}>{item}</div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section style={styles.card}>
@@ -602,7 +666,9 @@ export default async function AuditReportPage({
                     <p style={styles.opportunityText}>{item.description}</p>
                   ) : null}
                   {item.impact ? (
-                    <p style={styles.impactText}>Why this matters: {item.impact}</p>
+                    <p style={styles.impactText}>
+                      Why this matters: {item.impact}
+                    </p>
                   ) : null}
                 </div>
               ))}
@@ -645,17 +711,18 @@ export default async function AuditReportPage({
         <section style={styles.cta}>
           <div style={styles.ctaEyebrow}>Next step</div>
           <h2 style={styles.ctaTitle}>
-            You probably do not need more leads first. You need tighter handling
-            of the leads already reaching you.
+            Want to see how to fix this in your business?
           </h2>
 
           <p style={styles.ctaText}>
-            A short review call will walk through the findings, show where the
-            leaks are, and explain the fastest way to fix them.
+            Book a short review call and we’ll walk through the findings, show
+            where enquiries may be leaking, and map out the fastest path to
+            tightening your response and follow-up.
           </p>
 
-          <p style={styles.ctaText}>
-            This is the point where an audit becomes action.
+          <p style={styles.ctaTextStrong}>
+            Most businesses lose 20–40% of enquiries because responses are
+            missed, delayed, or inconsistent.
           </p>
 
           <a
@@ -664,7 +731,7 @@ export default async function AuditReportPage({
             rel="noreferrer"
             style={styles.button}
           >
-            Book My Audit Review Call
+            Book a Free 15-Minute Fix Call
           </a>
         </section>
       </div>
@@ -936,6 +1003,33 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "999px",
     background: "linear-gradient(90deg, #38bdf8 0%, #6366f1 100%)",
   },
+  fixGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "16px",
+    marginTop: "10px",
+  },
+  fixCard: {
+    background: "rgba(2,6,23,0.55)",
+    border: "1px solid #1e293b",
+    borderRadius: "18px",
+    padding: "18px",
+    display: "flex",
+    alignItems: "flex-start",
+    gap: "12px",
+  },
+  fixCheck: {
+    color: "#38bdf8",
+    fontSize: "20px",
+    fontWeight: 800,
+    lineHeight: 1.2,
+    marginTop: "2px",
+  },
+  fixText: {
+    color: "#cbd5e1",
+    fontSize: "16px",
+    lineHeight: 1.7,
+  },
   opportunityGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
@@ -1016,6 +1110,13 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "16px",
     fontSize: "18px",
     lineHeight: 1.75,
+  },
+  ctaTextStrong: {
+    color: "#f8fafc",
+    marginBottom: "18px",
+    fontSize: "18px",
+    lineHeight: 1.75,
+    fontWeight: 700,
   },
   button: {
     display: "inline-block",
