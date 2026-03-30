@@ -40,8 +40,6 @@ export default function AuditPage() {
     setErrorMessage("");
 
     try {
-      console.log("Submitting audit form:", form);
-
       const res = await fetch("/api/run-audit", {
         method: "POST",
         headers: {
@@ -50,10 +48,7 @@ export default function AuditPage() {
         body: JSON.stringify(form),
       });
 
-      console.log("run-audit status:", res.status);
-
       const data = await res.json();
-      console.log("run-audit response:", data);
 
       if (!res.ok) {
         throw new Error(data?.error || "Failed to run audit");
@@ -88,53 +83,53 @@ export default function AuditPage() {
           </div>
 
           <h1 className="text-4xl md:text-5xl font-bold leading-tight">
-            Your website is losing leads right now.
+            You’re losing leads every day.
             <br />
-            This will show you where.
+            This shows you exactly where.
           </h1>
 
           <p className="text-lg text-gray-300">
-            Most businesses don’t lose leads because of traffic.
+            Most businesses don’t have a traffic problem.
             <br />
-            They lose them because no one responds fast enough.
+            They have a response problem.
           </p>
 
-          <p className="text-gray-400">
-            We scan your website for missed enquiries, slow response risks, and
-            broken follow-up systems — so you can see exactly where revenue is
-            being lost.
+          <p className="text-gray-400 text-base md:text-lg leading-8">
+            We scan your website and enquiry pathways to show where leads may be
+            slipping through — before missed calls, weak follow-up, and slow
+            response times quietly turn into lost revenue.
           </p>
 
           <div className="space-y-3 pt-4">
             <div className="bg-[#0f172a] p-4 rounded-xl border border-gray-800">
-              ✔ Lead capture issues across key pages
+              ✔ Where enquiries are being missed
             </div>
             <div className="bg-[#0f172a] p-4 rounded-xl border border-gray-800">
-              ✔ Missed enquiry and response gaps
+              ✔ How fast — or slow — you respond
             </div>
             <div className="bg-[#0f172a] p-4 rounded-xl border border-gray-800">
-              ✔ CRM and automation readiness signals
+              ✔ Where follow-up is breaking down
             </div>
             <div className="bg-[#0f172a] p-4 rounded-xl border border-gray-800">
-              ✔ Estimated revenue at risk
+              ✔ How much revenue may be at risk
             </div>
           </div>
 
-          <div className="pt-4 text-sm text-gray-500">
-            Takes 30–60 seconds. No login required.
-          </div>
-
-          <div className="pt-2 text-sm text-gray-400">
-            Used by service businesses to uncover missed revenue from existing
-            enquiries.
+          <div className="pt-4 text-sm text-gray-400">
+            Used by service businesses to recover missed enquiries and increase
+            booked jobs.
           </div>
         </div>
 
         <div className="bg-[#020617] border border-gray-800 rounded-2xl p-8 shadow-xl">
+          <div className="inline-block text-xs font-semibold uppercase tracking-wider text-blue-300 bg-blue-500/10 border border-blue-400/20 rounded-full px-3 py-1 mb-4">
+            Free audit — no sales pitch, just results
+          </div>
+
           <h2 className="text-2xl font-semibold mb-2">Run your audit</h2>
 
           <p className="text-gray-400 mb-6">
-            Enter your details and get your results instantly.
+            Enter your details and see what may be costing you leads.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -145,7 +140,7 @@ export default function AuditPage() {
               value={form.name}
               required
               onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none"
+              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
             />
 
             <input
@@ -155,7 +150,7 @@ export default function AuditPage() {
               value={form.business}
               required
               onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none"
+              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
             />
 
             <input
@@ -165,7 +160,7 @@ export default function AuditPage() {
               value={form.website}
               required
               onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none"
+              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
             />
 
             <input
@@ -175,7 +170,7 @@ export default function AuditPage() {
               value={form.email}
               required
               onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none"
+              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
             />
 
             <input
@@ -184,7 +179,7 @@ export default function AuditPage() {
               placeholder="Phone (optional)"
               value={form.phone}
               onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none"
+              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
             />
 
             <button
@@ -192,19 +187,23 @@ export default function AuditPage() {
               disabled={loading}
               className="w-full py-4 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 font-semibold text-lg hover:opacity-90 transition disabled:opacity-70"
             >
-              {loading ? "Running Audit..." : "Show Me My Results"}
+              {loading ? "Running Audit..." : "Show Me My Lost Leads"}
             </button>
           </form>
+
+          <p className="text-xs text-gray-400 mt-4 text-center">
+            Takes 30–60 seconds. No login required.
+          </p>
+
+          <p className="text-xs text-gray-500 mt-2 text-center">
+            Your report will open instantly after the audit completes.
+          </p>
 
           {errorMessage ? (
             <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
               {errorMessage}
             </div>
           ) : null}
-
-          <p className="text-xs text-gray-500 mt-4 text-center">
-            Your report will open instantly after the audit completes.
-          </p>
         </div>
       </div>
     </div>
