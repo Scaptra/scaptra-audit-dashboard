@@ -154,14 +154,15 @@ export default function AuditPage() {
             />
 
             <input
-              type="url"
-              name="website"
-              placeholder="https://yourwebsite.com"
-              value={form.website}
-              required
-              onChange={handleChange}
-              className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
-            />
+  type="text"
+  inputMode="url"
+  name="website"
+  placeholder="yourwebsite.com"
+  value={form.website}
+  required
+  onChange={handleChange}
+  className="w-full p-4 rounded-lg bg-[#020617] border border-gray-700 focus:outline-none focus:border-blue-400"
+/>
 
             <input
               type="email"
