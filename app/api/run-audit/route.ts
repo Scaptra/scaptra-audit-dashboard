@@ -8,19 +8,26 @@ const supabase = createClient(
 );
 
 function normalizeUrl(input: string): string {
-  try {
-    const url = new URL(input);
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return input;
-  }
-}
-
-function ensureProtocol(input: string): string {
   const trimmed = input.trim();
-  if (/^https?:\/\//i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
+
+  if (!trimmed) {
+    throw new Error("Invalid URL");
+  }
+
+  let url = trimmed;
+
+  // Add https:// if missing
+  if (!/^https?:\/\//i.test(url)) {
+    url = "https://" + url;
+  }
+
+  try {
+    const parsed = new URL(url);
+    parsed.hash = "";
+    return parsed.toString();
+  } catch {
+    throw new Error("Invalid URL");
+  }
 }
 
 function getOrigin(input: string): string {
@@ -1048,6 +1055,15 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
+    const rawWebsiteInput =
+      typeof body?.website === "string"
+        ? body.website
+        : typeof body?.url === "string"
+        ? body.url
+        : "";
+
+    const normalizedUrl = normalizeUrl(rawWebsiteInput);
+
     const submissionIdFromBody =
       typeof body?.submissionId === "string" ? body.submissionId : undefined;
 
@@ -1061,12 +1077,7 @@ export async function POST(req: NextRequest) {
         ? body.businessName.trim()
         : "";
 
-    const submittedWebsite =
-      typeof body?.website === "string"
-        ? body.website.trim()
-        : typeof body?.url === "string"
-        ? body.url.trim()
-        : "";
+    const submittedWebsite = normalizedUrl;
 
     const submittedEmail =
       typeof body?.email === "string" ? body.email.trim().toLowerCase() : "";
@@ -1108,7 +1119,10 @@ export async function POST(req: NextRequest) {
 
       businessId = business.id;
       businessName = business.business_name ?? submittedBusiness ?? "Website Audit";
-      websiteUrl = business.website ?? submittedWebsite ?? undefined;
+      websiteUrl =
+        typeof business.website === "string" && business.website.trim()
+          ? normalizeUrl(business.website)
+          : submittedWebsite ?? undefined;
     } else {
       businessName = submittedBusiness;
       websiteUrl = submittedWebsite;
@@ -1119,8 +1133,6 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
-
-      websiteUrl = ensureProtocol(websiteUrl);
 
       const { data: business, error: businessInsertError } = await supabase
         .from("businesses")
