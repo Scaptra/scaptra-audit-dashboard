@@ -177,19 +177,45 @@ export default async function AuditReportPage({
           ))}
         </div>
 
-        <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-sky-900 bg-slate-950/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="font-semibold">Want to see what Scaptra could improve?</h2>
-            <p className="mt-1 text-sm text-slate-300">Book a free 15-minute walkthrough of your results.</p>
+        <div className="mt-6 rounded-2xl border border-sky-800 bg-slate-950/70 p-5 sm:p-6">
+          <div className="text-xs font-bold uppercase tracking-widest text-sky-400">
+            Your next step
           </div>
-          <a
-            href={BOOKING_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 rounded-xl bg-sky-400 px-5 py-3 text-center text-sm font-bold text-slate-950 hover:bg-sky-300"
-          >
-            Book a free walkthrough
-          </a>
+          <h2 className="mt-2 text-xl font-bold">Get the full picture</h2>
+          <p className="mt-2 text-sm leading-relaxed text-slate-300">
+            Receive your free detailed audit findings and practical recommendations by email.
+            No cost or obligation.
+          </p>
+
+          {/* Keep this button disabled until the protected email-request endpoint is deployed.
+              The form target is a placeholder for the planned endpoint, not a live service. */}
+          <form action="/api/request-full-report" method="POST" className="mt-4">
+            <input type="hidden" name="auditId" value={id} />
+            <button
+              type="submit"
+              disabled
+              className="w-full cursor-not-allowed rounded-xl bg-sky-400 px-5 py-3.5 text-center text-base font-bold text-slate-950 opacity-60 sm:w-auto"
+            >
+              Get My Free Full Report
+            </button>
+          </form>
+          <p className="mt-2 text-xs text-slate-400">
+            Email delivery is being configured. This button will be enabled after testing.
+          </p>
+
+          <div className="mt-5 border-t border-slate-700 pt-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
+            <p className="text-sm text-slate-300">
+              Prefer to talk it through? Book a free 15-minute walkthrough.
+            </p>
+            <a
+              href={BOOKING_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 inline-block shrink-0 rounded-xl border border-sky-400 px-5 py-3 text-center text-sm font-semibold text-sky-300 hover:bg-sky-400/10 sm:mt-0"
+            >
+              Book a free walkthrough
+            </a>
+          </div>
         </div>
         <p className="mt-4 text-xs leading-relaxed text-slate-400">
           This snapshot is based on publicly visible website information. Recommendations are opportunities to investigate, not proof of missed enquiries or lost revenue.
