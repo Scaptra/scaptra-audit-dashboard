@@ -1269,18 +1269,8 @@ export async function POST(req: NextRequest) {
         process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
       }/audit/${limitedResult.reportData.id}`;
 
-      if (submittedEmail) {
-        try {
-          await sendAuditReportEmail({
-            to: submittedEmail,
-            businessName,
-            reportUrl: limitedReportUrl,
-            isLimitedScan: true,
-          });
-        } catch (emailError) {
-          console.error("Failed to send limited audit email:", emailError);
-        }
-      }
+      // Automatic limited-audit email disabled.
+// Full report will be sent only when requested.
 
       return NextResponse.json({
         ok: true,
@@ -1815,18 +1805,8 @@ export async function POST(req: NextRequest) {
       process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
     }/audit/${auditReportData.id}`;
 
-    if (submittedEmail) {
-      try {
-        await sendAuditReportEmail({
-          to: submittedEmail,
-          businessName,
-          reportUrl: fullReportUrl,
-          isLimitedScan: false,
-        });
-      } catch (emailError) {
-        console.error("Failed to send audit email:", emailError);
-      }
-    }
+    // Automatic audit report email disabled.
+// The detailed report will only be emailed when requested.
 
     return NextResponse.json({
       ok: true,
