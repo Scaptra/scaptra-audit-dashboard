@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-
+import RequestFullReportButton from "./RequestFullReportButton";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -187,21 +187,9 @@ export default async function AuditReportPage({
             No cost or obligation.
           </p>
 
-          {/* Keep this button disabled until the protected email-request endpoint is deployed.
-              The form target is a placeholder for the planned endpoint, not a live service. */}
-          <form action="/api/request-full-report" method="POST" className="mt-4">
-            <input type="hidden" name="auditId" value={id} />
-            <button
-              type="submit"
-              disabled
-              className="w-full cursor-not-allowed rounded-xl bg-sky-400 px-5 py-3.5 text-center text-base font-bold text-slate-950 opacity-60 sm:w-auto"
-            >
-              Get My Free Full Report
-            </button>
-          </form>
-          <p className="mt-2 text-xs text-slate-400">
-            Email delivery is being configured. This button will be enabled after testing.
-          </p>
+         
+<RequestFullReportButton reportId={id} />
+
 
           <div className="mt-5 border-t border-slate-700 pt-4 sm:flex sm:items-center sm:justify-between sm:gap-4">
             <p className="text-sm text-slate-300">
