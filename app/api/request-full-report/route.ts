@@ -41,14 +41,20 @@ export async function POST(req: NextRequest) {
 
     // Atomic, database-enforced 24-hour cooldown. Requires the migration described below.
     // Fail closed if the RPC is absent or unavailable: never create an unrestricted mail relay.
-    const { data: allowed, error: limitError } = await db.rpc("claim_audit_report_email", {
+    
+const { data: requestToken, error: limitError } =
+ 
+await db.rpc("claim_audit_report_email_v2", {
+
       p_report_id: reportId,
     });
     if (limitError) {
       console.error("Full report cooldown check failed", limitError.message);
       return NextResponse.json({ error: "Report requests are temporarily unavailable" }, { status: 503 });
     }
-    if (allowed !== true) {
+   
+if (typeof requestToken !== "string" || !validUuid(requestToken)) {
+
       return NextResponse.json({ error: "This report was already requested recently. Please check your inbox." }, { status: 429 });
     }
 
@@ -103,10 +109,28 @@ export async function POST(req: NextRequest) {
       subject: `Your free Scaptra detailed report — ${businessName}`,
       html,
     });
-    if (sendError) {
-      console.error("Full report email failed", sendError.message);
-      return NextResponse.json({ error: "Unable to send the report right now" }, { status: 502 });
+   
+if (sendError) {
+  console.error("Full report email failed", sendError.message);
+
+  const { error: releaseError } = await db.rpc(
+    "release_audit_report_email",
+    {
+      p_report_id: reportId,
+      p_request_token: requestToken,
     }
+  );
+
+  if (releaseError) {
+    console.error("Failed to release report request:", releaseError.message);
+  }
+
+  return NextResponse.json(
+    { error: "Unable to send the report right now" },
+    { status: 502 }
+  );
+}
+
     return NextResponse.json({ success: true, message: "Your report has been sent to the email address used for the audit." });
   } catch (error) {
     console.error("Full report request failed", error);
