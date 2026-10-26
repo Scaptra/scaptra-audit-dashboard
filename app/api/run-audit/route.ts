@@ -753,6 +753,7 @@ const isRetailOrMedia =
 }
 
 function buildImplementationBlueprint(params: {
+  businessName: string;
   hasPhone: boolean;
   totalForms: number;
   crm_data_score: number;
@@ -762,6 +763,7 @@ function buildImplementationBlueprint(params: {
   pagesWithNoButtons: number;
 }) {
   const {
+    businessName,
     hasPhone,
     totalForms,
     crm_data_score,
@@ -807,7 +809,7 @@ function buildImplementationBlueprint(params: {
     );
   }
 
-  if (!hasBooking) {
+  if (!hasBooking && !/\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(businessName)) {
     phases.push(
       "Finally, introduce a stronger booking or appointment path for visitors who are ready to act immediately."
     );
