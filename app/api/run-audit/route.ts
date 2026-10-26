@@ -572,6 +572,7 @@ function buildEngagementFlowMap(params: {
 }
 
 function buildLeadLeakageSummary(params: {
+    businessName: string;
   pagesWithNoForms: number;
   pagesWithNoButtons: number;
   hasEmail: boolean;
@@ -583,6 +584,7 @@ function buildLeadLeakageSummary(params: {
   totalPages: number;
 }) {
   const {
+    businessName,
     pagesWithNoForms,
     pagesWithNoButtons,
     hasEmail,
@@ -598,7 +600,7 @@ function buildLeadLeakageSummary(params: {
 
   if (!hasPhone) issues.push("phone contact is not clearly visible");
   if (!hasEmail) issues.push("email contact is not clearly visible");
-  if (!hasBooking) issues.push("there is no clear booking or appointment pathway");
+  if (!hasBooking && !/\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(businessName)) issues.push("there is no clear booking or appointment pathway");
   if (pagesWithNoForms > 0) {
     issues.push(`${pagesWithNoForms} page(s) do not show a visible form`);
   }
@@ -1687,6 +1689,7 @@ export async function POST(req: NextRequest) {
     });
 
     const lead_leakage_summary = buildLeadLeakageSummary({
+      businessName,
       pagesWithNoForms,
       pagesWithNoButtons,
       hasEmail,
