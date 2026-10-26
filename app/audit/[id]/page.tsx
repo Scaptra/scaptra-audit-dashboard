@@ -58,7 +58,7 @@ function getOpportunities(report: any, scoreRow: any, limited: boolean): Opportu
     for (const item of Object.values(matrix) as any[]) {
       const title = typeof item === "string" ? "Improvement opportunity" : cleanText(item?.title);
       const description = typeof item === "string" ? item : cleanText(item?.description);
-      if (title && description && !detected.some((entry) => entry.title === title)) {
+     if (title && description && !detected.some((entry) => entry.title === title || (entry.title === "Make the next step clearer" && title === "Make action points more obvious"))) {
         detected.push({ title, description });
       }
     }
