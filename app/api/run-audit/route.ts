@@ -1717,6 +1717,7 @@ export async function POST(req: NextRequest) {
     });
 
     const implementation_blueprint = buildImplementationBlueprint({
+      businessName,
       hasPhone,
       totalForms,
       crm_data_score,
