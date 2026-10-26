@@ -625,6 +625,7 @@ function buildLeadLeakageSummary(params: {
 }
 
 function buildAutomationOpportunityMatrix(params: {
+  businessName: string;
   hasBooking: boolean;
   hasPhone: boolean;
   hasEmail: boolean;
@@ -636,6 +637,7 @@ function buildAutomationOpportunityMatrix(params: {
   pagesWithNoButtons: number;
 }) {
   const {
+    businessName,
     hasBooking,
     hasPhone,
     hasEmail,
@@ -651,8 +653,11 @@ function buildAutomationOpportunityMatrix(params: {
     string,
     { title: string; description: string; impact: string }
   > = {};
+const name = businessName.toLowerCase();
 
-  if (!hasBooking) {
+const isRetailOrMedia =
+  /\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(name);
+ if (!hasBooking && !isRetailOrMedia) {
     matrix.booking_path = {
       title: "Make the next step more immediate",
       description:
@@ -692,7 +697,7 @@ function buildAutomationOpportunityMatrix(params: {
     matrix.action_prompting = {
       title: "Make action points more obvious",
       description:
-        "Strengthen the wording and placement of prompts that guide visitors to call, enquire, or book.",
+  "Make the next step clear, whether visitors want to enquire, request information, make a purchase, or arrange a service.",
       impact: "Improves the number of visitors who take the next step.",
     };
   }
@@ -1694,6 +1699,7 @@ export async function POST(req: NextRequest) {
     });
 
     const automation_opportunity_matrix = buildAutomationOpportunityMatrix({
+      businessName,
       hasBooking,
       hasPhone,
       hasEmail,
