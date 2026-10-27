@@ -70,10 +70,10 @@ function getOpportunities(report: any, scoreRow: any, limited: boolean): Opportu
     { title: "Review follow-up", description: "Make sure interested customers have a clear next step." },
     { title: "Simplify customer contact", description: "Help visitors reach the right person with less effort." },
   ];
-  for (const suggestion of suggestions) {
-    if (detected.length >= 3) break;
-    if (!detected.some((entry) => entry.title === suggestion.title)) detected.push(suggestion);
-  }
+  const contactOpportunity = detected[0] ?? suggestions[2];
+
+detected.length = 0;
+detected.push(contactOpportunity, suggestions[0], suggestions[1]);
   return detected.slice(0, 3).map((item) => ({
     title: item.title,
     description: item.description.length > 145 ? `${item.description.slice(0, 142)}…` : item.description,
