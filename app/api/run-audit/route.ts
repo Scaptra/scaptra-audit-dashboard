@@ -572,6 +572,7 @@ function buildEngagementFlowMap(params: {
 }
 
 function buildLeadLeakageSummary(params: {
+    businessName: string;
   pagesWithNoForms: number;
   pagesWithNoButtons: number;
   hasEmail: boolean;
@@ -583,6 +584,7 @@ function buildLeadLeakageSummary(params: {
   totalPages: number;
 }) {
   const {
+    businessName,
     pagesWithNoForms,
     pagesWithNoButtons,
     hasEmail,
@@ -598,7 +600,7 @@ function buildLeadLeakageSummary(params: {
 
   if (!hasPhone) issues.push("phone contact is not clearly visible");
   if (!hasEmail) issues.push("email contact is not clearly visible");
-  if (!hasBooking) issues.push("there is no clear booking or appointment pathway");
+  if (!hasBooking && !/\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(businessName)) issues.push("there is no clear booking or appointment pathway");
   if (pagesWithNoForms > 0) {
     issues.push(`${pagesWithNoForms} page(s) do not show a visible form`);
   }
@@ -625,6 +627,7 @@ function buildLeadLeakageSummary(params: {
 }
 
 function buildAutomationOpportunityMatrix(params: {
+  businessName: string;
   hasBooking: boolean;
   hasPhone: boolean;
   hasEmail: boolean;
@@ -636,6 +639,7 @@ function buildAutomationOpportunityMatrix(params: {
   pagesWithNoButtons: number;
 }) {
   const {
+    businessName,
     hasBooking,
     hasPhone,
     hasEmail,
@@ -651,8 +655,11 @@ function buildAutomationOpportunityMatrix(params: {
     string,
     { title: string; description: string; impact: string }
   > = {};
+const name = businessName.toLowerCase();
 
-  if (!hasBooking) {
+const isRetailOrMedia =
+  /\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(name);
+ if (!hasBooking && !isRetailOrMedia) {
     matrix.booking_path = {
       title: "Make the next step more immediate",
       description:
@@ -692,7 +699,7 @@ function buildAutomationOpportunityMatrix(params: {
     matrix.action_prompting = {
       title: "Make action points more obvious",
       description:
-        "Strengthen the wording and placement of prompts that guide visitors to call, enquire, or book.",
+  "Make the next step clear, whether visitors want to enquire, request information, make a purchase, or arrange a service.",
       impact: "Improves the number of visitors who take the next step.",
     };
   }
@@ -746,6 +753,7 @@ function buildAutomationOpportunityMatrix(params: {
 }
 
 function buildImplementationBlueprint(params: {
+  businessName: string;
   hasPhone: boolean;
   totalForms: number;
   crm_data_score: number;
@@ -755,6 +763,7 @@ function buildImplementationBlueprint(params: {
   pagesWithNoButtons: number;
 }) {
   const {
+    businessName,
     hasPhone,
     totalForms,
     crm_data_score,
@@ -800,7 +809,7 @@ function buildImplementationBlueprint(params: {
     );
   }
 
-  if (!hasBooking) {
+  if (!hasBooking && !/\b(timber|hardware|supplies|retail|shop|store|radio|media|broadcast|news)\b/i.test(businessName)) {
     phases.push(
       "Finally, introduce a stronger booking or appointment path for visitors who are ready to act immediately."
     );
@@ -1269,18 +1278,8 @@ export async function POST(req: NextRequest) {
         process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
       }/audit/${limitedResult.reportData.id}`;
 
-      if (submittedEmail) {
-        try {
-          await sendAuditReportEmail({
-            to: submittedEmail,
-            businessName,
-            reportUrl: limitedReportUrl,
-            isLimitedScan: true,
-          });
-        } catch (emailError) {
-          console.error("Failed to send limited audit email:", emailError);
-        }
-      }
+      // Automatic limited-audit email disabled.
+// Full report will be sent only when requested.
 
       return NextResponse.json({
         ok: true,
@@ -1692,6 +1691,7 @@ export async function POST(req: NextRequest) {
     });
 
     const lead_leakage_summary = buildLeadLeakageSummary({
+      businessName,
       pagesWithNoForms,
       pagesWithNoButtons,
       hasEmail,
@@ -1704,6 +1704,7 @@ export async function POST(req: NextRequest) {
     });
 
     const automation_opportunity_matrix = buildAutomationOpportunityMatrix({
+      businessName,
       hasBooking,
       hasPhone,
       hasEmail,
@@ -1716,6 +1717,7 @@ export async function POST(req: NextRequest) {
     });
 
     const implementation_blueprint = buildImplementationBlueprint({
+      businessName,
       hasPhone,
       totalForms,
       crm_data_score,
@@ -1815,18 +1817,8 @@ export async function POST(req: NextRequest) {
       process.env.AUDIT_APP_URL || "https://audit.scaptra.ai"
     }/audit/${auditReportData.id}`;
 
-    if (submittedEmail) {
-      try {
-        await sendAuditReportEmail({
-          to: submittedEmail,
-          businessName,
-          reportUrl: fullReportUrl,
-          isLimitedScan: false,
-        });
-      } catch (emailError) {
-        console.error("Failed to send audit email:", emailError);
-      }
-    }
+    // Automatic audit report email disabled.
+// The detailed report will only be emailed when requested.
 
     return NextResponse.json({
       ok: true,
