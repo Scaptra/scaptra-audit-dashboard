@@ -1761,15 +1761,59 @@ export async function POST(req: NextRequest) {
       );
     }
 
+const aiFindings = crawledPages
+  .filter((page) => page.status === 200)
+  .flatMap((page) => [
+    `Page ${page.url}: ${page.formCount} form(s) detected.`,
+    `Page ${page.url}: ${page.buttonCount} button(s) detected.`,
+    `Page ${page.url}: ${page.h1Count} main heading(s) detected.`,
+    `Page ${page.url}: phone number ${page.phones.length > 0 ? "detected" : "not detected"}.`,
+    `Page ${page.url}: email address ${page.emails.length > 0 ? "detected" : "not detected"}.`,
+    `Page ${page.url}: booking signal ${page.bookingWidgetDetected ? "detected" : "not detected"}.`,
+  ]);
+
+let aiReport = null;
+
+if (aiFindings.length > 0 && process.env.OPENAI_API_KEY) {
+  try {
+    aiReport = await generateAiAuditReport({
+      businessName,
+      website: websiteUrl,
+      scannedPages: crawledPages.filter((page) => page.status === 200).length,
+      findings: aiFindings,
+      limitedScan: false,
+    });
+  } catch (error) {
+    console.error("AI audit report generation failed:", error);
+  }
+}
+
     const { data: auditReportData, error: auditReportError } = await supabase
       .from("audit_reports")
       .insert({
         submission_id: submissionId,
-        executive_summary,
-        engagement_flow_map,
-        lead_leakage_summary,
-        automation_opportunity_matrix,
-        implementation_blueprint,
+        executive_summary: aiReport?.executiveSummary ?? executive_summary,
+        engagement_flow_map: aiReport?.customerJourney ?? engagement_flow_map,
+        lead_leakage_summary: aiReport
+  ? "The website scan identifies opportunities to review customer enquiry pathways, but it cannot confirm whether enquiries are being lost. The recommendations in this report are based on detected website elements and should be verified with the business."
+  : lead_leakage_summary,
+        automation_opportunity_matrix: aiReport
+  ? Object.fromEntries(
+      aiReport.opportunities.map((item, index) => [
+        `ai_opportunity_${index + 1}`,
+        {
+          title: item.title,
+          description: item.description,
+          impact: "Suggested improvement based on scanned website evidence.",
+        },
+      ])
+    )
+  : automation_opportunity_matrix,
+       implementation_blueprint: aiReport
+  ? aiReport.recommendedNextSteps
+      .map((step, index) => `${index + 1}. ${step}`)
+      .join("\n")
+  : implementation_blueprint,
         detected_stack,
       })
       .select()
