@@ -103,6 +103,8 @@ Rules:
 - Do not assume a business needs appointment bookings.
 - Adapt recommendations to the business and its customers.
 - Treat industry-specific examples as possibilities, not facts.
+- Never describe a possible customer journey as a verified fact. If button destinations, form behaviour or enquiry pathways have not been verified, explicitly state that they are unknown.
+- Tailor improvement suggestions to the business type where reasonably identifiable. For example, a timber supplier may benefit from clearer product enquiries, quote requests or delivery information; a dental clinic from appointment enquiries; and a roofing business from quote requests. Present these as possible improvements, never as verified customer needs or existing website problems.
 - If the scan was limited, explain that limitation.
 - Use clear Australian English.
 - Avoid technical jargon and exaggerated sales language.
