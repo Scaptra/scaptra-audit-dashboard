@@ -96,7 +96,12 @@ if (typeof requestToken !== "string" || !validUuid(requestToken)) {
       ${section("Customer enquiry journey", report.engagement_flow_map)}
       ${section("Areas to investigate", report.lead_leakage_summary)}
       ${opportunities ? `<section><h2 style="color:#38bdf8">Practical opportunities</h2><ul style="line-height:1.6">${opportunities}</ul></section>` : ""}
-      ${section("Suggested next steps", report.implementation_blueprint)}
+     ${section(
+  "Suggested next steps",
+  typeof report.implementation_blueprint === "string"
+    ? report.implementation_blueprint.replace(/(\d+)\.\s/g, "\n$1. ").trim()
+    : report.implementation_blueprint
+)}
       <p style="margin-top:28px">Would you like to discuss which improvements matter most for your business?</p>
       <a href="${BOOKING_URL}" style="display:inline-block;background:#38bdf8;color:#020617;padding:14px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Book a free 15-minute walkthrough</a>
       <p style="color:#94a3b8;font-size:12px;margin-top:30px">Scaptra · Free report, no obligation</p>
