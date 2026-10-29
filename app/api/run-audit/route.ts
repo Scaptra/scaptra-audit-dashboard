@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendAuditReportEmail } from "@/app/lib/send-audit-report-email";
+import { generateAiAuditReport } from "@/app/lib/ai-audit-report";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
