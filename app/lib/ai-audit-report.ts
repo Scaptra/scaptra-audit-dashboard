@@ -40,7 +40,15 @@ export function validateAuditReport(
   if (
     !report ||
     !Array.isArray(report.opportunities) ||
-    !Array.isArray(report.recommendedNextSteps)
+    !Array.isArray(report.recommendedNextSteps) ||
+typeof report.executiveSummary !== "string" ||
+report.executiveSummary.trim().length === 0 ||
+typeof report.customerJourney !== "string" ||
+report.customerJourney.trim().length === 0 ||
+report.recommendedNextSteps.length === 0 ||
+!report.recommendedNextSteps.every(
+  (step) => typeof step === "string" && step.trim().length > 0
+)
   ) {
     return false;
   }
