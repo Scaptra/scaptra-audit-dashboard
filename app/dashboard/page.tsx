@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 
 type AuditSubmission = {
@@ -193,6 +194,7 @@ async function getDashboardRows(): Promise<DashboardRow[]> {
 }
 
 export default async function DashboardPage() {
+  notFound();
   const rows = await getDashboardRows();
 
   const totalAudits = rows.length;
