@@ -7,6 +7,11 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  return NextResponse.json(
+    { error: "Audit event tracking is temporarily disabled" },
+    { status: 503 }
+  );
+  
   try {
     const body = await req.json();
     const { auditId, eventType, eventValue } = body;
