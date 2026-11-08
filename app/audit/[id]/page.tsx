@@ -111,7 +111,7 @@ export default async function AuditReportPage({
       .single();
     const { data: scoreData } = await supabase
       .from("audit_scores")
-      .select("*")
+      .select("total_score,scoring_notes")
       .eq("submission_id", report.submission_id)
       .single();
     scoreRow = scoreData;
