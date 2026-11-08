@@ -63,6 +63,16 @@ function extractInternalLinks(html: string, baseUrl: string): string[] {
 
     try {
       const absolute = new URL(href, baseUrl).toString();
+      const path = new URL(absolute).pathname.toLowerCase();
+
+if (
+  path.startsWith("/wp-json/") ||
+  path === "/wp-json" ||
+  path.startsWith("/wp-admin/") ||
+  path.startsWith("/wp-login")
+) {
+  continue;
+}
 
       if (
         absolute.includes(".css") ||
