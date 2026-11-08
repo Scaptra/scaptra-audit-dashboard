@@ -125,10 +125,10 @@ export default async function AuditReportPage({
     }
   }
 
-  const name = business?.business_name || report.business_name || "Your business";
-  const website = business?.website || report.website || "";
-  const limited = scoreRow?.scoring_notes?.limited_scan === true;
-  const rawScore = scoreRow?.total_score ?? report.total_score;
+  const name = business?.business_name || "Your business";
+const website = business?.website || "";
+const limited = scoreRow?.scoring_notes?.limited_scan === true;
+const rawScore = scoreRow?.total_score ?? null;
   const score = typeof rawScore === "number" && Number.isFinite(rawScore)
     ? Math.max(0, Math.min(100, Math.round(rawScore)))
     : null;
