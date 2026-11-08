@@ -159,27 +159,26 @@ function extractPhones(html: string): string[] {
   return [...results];
 }
 
+
 function detectBookingWidget(html: string): boolean {
   const lower = html.toLowerCase();
 
-  const signals = [
-    "calendly",
-    "acuityscheduling",
-    "simplybook",
-    "book now",
-    "book online",
-    "schedule a call",
-    "schedule call",
-    "schedule consultation",
-    "book a demo",
-    "book demo",
-    "appointment",
-    "reserve now",
-    "request a quote",
+  // Recognisable booking platform integrations.
+  const bookingPlatforms = [
+    "calendly.com",
+    "acuityscheduling.com",
+    "simplybook.me",
+    "cal.com/embed",
+    "squareup.com/appointments",
+    "leadconnectorhq.com/widget/booking/",
+    "app.gohighlevel.com/v2/preview/",
   ];
 
-  return signals.some((signal) => lower.includes(signal));
+  return bookingPlatforms.some((platform) =>
+    lower.includes(platform)
+  );
 }
+
 
 function detectProtectionBlock(params: {
   status: number;
