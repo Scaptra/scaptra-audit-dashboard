@@ -88,7 +88,7 @@ export default async function AuditReportPage({
   const { id } = await params;
   const { data: report, error } = await supabase
     .from("audit_reports")
-    .select("id,submission_id,business_name,website,total_score,automation_opportunity_matrix")
+   .select("id,submission_id,automation_opportunity_matrix")
     .eq("id", id)
     .single();
 
