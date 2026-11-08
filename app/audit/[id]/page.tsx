@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import RequestFullReportButton from "./RequestFullReportButton";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 const BOOKING_URL =
@@ -88,7 +88,7 @@ export default async function AuditReportPage({
   const { id } = await params;
   const { data: report, error } = await supabase
     .from("audit_reports")
-    .select("*")
+   .select("id,submission_id,automation_opportunity_matrix")
     .eq("id", id)
     .single();
 
@@ -106,29 +106,29 @@ export default async function AuditReportPage({
   if (report.submission_id) {
     const { data: submission } = await supabase
       .from("audit_submissions")
-      .select("*")
+      .select("business_id")
       .eq("id", report.submission_id)
       .single();
     const { data: scoreData } = await supabase
       .from("audit_scores")
-      .select("*")
+      .select("total_score,scoring_notes")
       .eq("submission_id", report.submission_id)
       .single();
     scoreRow = scoreData;
     if (submission?.business_id) {
       const { data: businessData } = await supabase
         .from("businesses")
-        .select("*")
+        .select("business_name,website")
         .eq("id", submission.business_id)
         .single();
       business = businessData;
     }
   }
 
-  const name = business?.business_name || report.business_name || "Your business";
-  const website = business?.website || report.website || "";
-  const limited = scoreRow?.scoring_notes?.limited_scan === true;
-  const rawScore = scoreRow?.total_score ?? report.total_score;
+  const name = business?.business_name || "Your business";
+const website = business?.website || "";
+const limited = scoreRow?.scoring_notes?.limited_scan === true;
+const rawScore = scoreRow?.total_score ?? null;
   const score = typeof rawScore === "number" && Number.isFinite(rawScore)
     ? Math.max(0, Math.min(100, Math.round(rawScore)))
     : null;
