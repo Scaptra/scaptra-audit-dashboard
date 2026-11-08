@@ -106,7 +106,7 @@ export default async function AuditReportPage({
   if (report.submission_id) {
     const { data: submission } = await supabase
       .from("audit_submissions")
-      .select("*")
+      .select("business_id")
       .eq("id", report.submission_id)
       .single();
     const { data: scoreData } = await supabase
