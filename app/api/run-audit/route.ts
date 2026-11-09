@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import * as cheerio from "cheerio";
 import { sendAuditReportEmail } from "@/app/lib/send-audit-report-email";
 
 const supabase = createClient(
@@ -118,6 +119,43 @@ function countTag(html: string, tag: string): number {
   const regex = new RegExp(`<${tag}\\b`, "gi");
   return (html.match(regex) || []).length;
 }
+
+function countEnquiryForms(html: string): number {
+  const $ = cheerio.load(html);
+  let count = 0;
+
+  $("form").each((_, form) => {
+    const element = $(form);
+
+    const details = [
+      element.attr("id") || "",
+      element.attr("class") || "",
+      element.attr("action") || "",
+      element.find("input, textarea, select").map((_, field) => {
+        const input = $(field);
+        return [
+          input.attr("name") || "",
+          input.attr("id") || "",
+          input.attr("placeholder") || "",
+          input.attr("type") || "",
+        ].join(" ");
+      }).get().join(" "),
+    ].join(" ").toLowerCase();
+
+    const excluded =
+      /\b(search|cart|checkout|login|log-in|password|coupon|quantity|add-to-cart)\b/i.test(details);
+
+    const hasContactFields =
+      /\b(email|e-mail|phone|telephone|message|enquiry|inquiry|contact)\b/i.test(details);
+
+    if (!excluded && hasContactFields) {
+      count++;
+    }
+  });
+
+  return count;
+}
+
 
 function extractEmails(html: string): string[] {
   const results = new Set<string>();
@@ -1339,6 +1377,11 @@ export async function POST(req: NextRequest) {
     const homepageDescription = extractMetaDescription(homepageHtml);
     const homepageH1Count = countTag(homepageHtml, "h1");
     const homepageFormCount = countTag(homepageHtml, "form");
+    const homepageEnquiryFormCount = countEnquiryForms(homepageHtml);
+    console.log("[Audit form detection]", {
+  totalForms: homepageFormCount,
+  enquiryForms: homepageEnquiryFormCount,
+});
     const homepageButtonCount = countTag(homepageHtml, "button");
 
     const discoveredLinks = extractInternalLinks(homepageHtml, websiteUrl);
