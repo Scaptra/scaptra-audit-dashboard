@@ -132,32 +132,31 @@ function extractEmails(html: string): string[] {
   return [...results];
 }
 
+
 function extractPhones(html: string): string[] {
   const results = new Set<string>();
 
-  const telMatches = [...html.matchAll(/tel:([+\d][\d\s\-()]{6,})/gi)];
+  // Only detect phone numbers explicitly linked by the website.
+  // Avoid matching product codes, dates and IDs in raw HTML.
+  const telMatches = [
+    ...html.matchAll(/tel:([+\d][\d\s\-()]{6,})/gi),
+  ];
+
   for (const match of telMatches) {
     const raw = match[1]?.trim();
-    if (raw) results.add(raw);
-  }
+    if (!raw) continue;
 
-  const textMatches = html.match(
-    /(?:\+?\d{1,3}[\s\-()]*)?(?:\d[\s\-()]*){7,15}/g
-  );
+    const digits = raw.replace(/\D/g, "");
 
-  if (textMatches) {
-    for (const value of textMatches) {
-      const cleaned = value.replace(/[^\d+]/g, "");
-      const digitCount = cleaned.replace(/\D/g, "").length;
-
-      if (digitCount >= 8 && digitCount <= 15) {
-        results.add(value.trim());
-      }
+    // Accept plausible phone-number lengths only.
+    if (digits.length >= 8 && digits.length <= 15) {
+      results.add(raw);
     }
   }
 
   return [...results];
 }
+
 
 
 function detectBookingWidget(html: string): boolean {
