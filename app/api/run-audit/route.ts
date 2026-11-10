@@ -427,15 +427,19 @@ pagesWithNoEnquiryForms: number;
   ai_readiness_score += round((metaCoverage / 100) * 2);
   ai_readiness_score = clamp(ai_readiness_score, 0, 17);
 
-  const total_score = clamp(
-    lead_capture_score +
+   const total_score = clamp(
+  round(
+    ((lead_capture_score +
       response_efficiency_score +
       crm_data_score +
       automation_score +
-      ai_readiness_score,
-    0,
-    100
-  );
+      ai_readiness_score) /
+      118) *
+      100
+  ),
+  0,
+  100
+);
 
   return {
     lead_capture_score,
