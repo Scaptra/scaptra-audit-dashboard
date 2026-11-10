@@ -549,7 +549,7 @@ function buildExecutiveSummary(params: {
 
   const weakText =
     weakerAreas.length > 0
-      ? `The main improvement opportunity appears to be ${weakerAreas
+      ? `Based on the visible website features, areas worth reviewing include ${weakerAreas
           .slice(0, 2)
           .join(" and ")}.`
       : "";
@@ -561,7 +561,7 @@ function buildExecutiveSummary(params: {
         )}.`
       : `During the review of ${totalPages} page(s), there were no major structural red flags across headings, titles, or descriptions.`;
 
-  return `${businessName} currently shows a ${readinessLevel} level of enquiry-handling readiness, with an overall score of ${totalScore} out of 100. The visible contact pathways on this site include ${
+  return `${businessName} has a ${readinessLevel} rating for visible website enquiry features, with an overall score of ${totalScore} out of 100. The visible contact pathways on this site include ${
     channels.length > 0 ? channels.join(", ") : "limited contact options"
   }. ${strongText} ${weakText} ${qualityText}`.trim();
 }
@@ -622,9 +622,7 @@ function buildEngagementFlowMap(params: {
   }
 
   const crmComment =
-    crm_data_score >= 12
-      ? "There are reasonable signs that enquiries could be captured and followed up in a structured way."
-      : "There are limited signs of structured capture or follow-up readiness behind the visible contact channels.";
+  "The website provides visible contact options, but this scan cannot verify whether enquiries enter a CRM, receive automatic acknowledgements, or are followed up consistently. These processes should be confirmed directly with the business.";
 
   return `Across ${totalPages} scanned page(s), the site appears to rely on ${contactPath}. ${responseComment} ${frictionComment} ${crmComment}`;
 }
