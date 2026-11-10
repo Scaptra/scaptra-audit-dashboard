@@ -142,8 +142,8 @@ function countEnquiryForms(html: string): number {
       }).get().join(" "),
     ].join(" ").toLowerCase();
 
-    const excluded =
-      /\b(search|cart|checkout|login|log-in|password|coupon|quantity|add-to-cart)\b/i.test(details);
+    const excluded = 
+    /\b(search|cart|checkout|login|log-in|register|registration|sign-up|signup|newsletter|subscribe|subscription|password|coupon|quantity|add-to-cart)\b/i.test(details);
 
     const hasContactFields =
       /\b(email|e-mail|phone|telephone|message|enquiry|inquiry|contact)\b/i.test(details);
