@@ -337,11 +337,14 @@ function calculateScores(params: {
   hasPhone: boolean;
   hasBooking: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
+pagesWithNoEnquiryForms: number;
   totalButtons: number;
 }) {
   const {
     totalPages,
     pagesWithNoForms,
+    pagesWithNoEnquiryForms,
     pagesWithNoButtons,
     pagesWithNoH1,
     missingTitleCount,
@@ -350,13 +353,14 @@ function calculateScores(params: {
     hasPhone,
     hasBooking,
     totalForms,
+    totalEnquiryForms,
     totalButtons,
   } = params;
 
   const safeTotalPages = Math.max(totalPages, 1);
 
   const formCoverage = clamp(
-    ((safeTotalPages - pagesWithNoForms) / safeTotalPages) * 100,
+    ((safeTotalPages - pagesWithNoEnquiryForms) / safeTotalPages) * 100,
     0,
     100
   );
@@ -385,7 +389,7 @@ function calculateScores(params: {
   lead_capture_score += hasPhone ? 8 : 0;
   lead_capture_score += hasEmail ? 6 : 0;
   lead_capture_score += hasBooking ? 8 : 0;
-  lead_capture_score += totalForms > 0 ? 6 : 0;
+  lead_capture_score += totalEnquiryForms > 0 ? 6 : 0;
   lead_capture_score += round((formCoverage / 100) * 6);
   lead_capture_score += round((buttonCoverage / 100) * 6);
   lead_capture_score = clamp(lead_capture_score, 0, 40);
@@ -400,7 +404,7 @@ function calculateScores(params: {
 
   let crm_data_score = 0;
   crm_data_score += hasEmail ? 6 : 0;
-  crm_data_score += totalForms > 0 ? 5 : 0;
+  crm_data_score += totalEnquiryForms > 0 ? 5 : 0;
   crm_data_score += round((titleCoverage / 100) * 2);
   crm_data_score += round((metaCoverage / 100) * 2);
   crm_data_score += round((headingCoverage / 100) * 3);
@@ -409,7 +413,7 @@ function calculateScores(params: {
   let automation_score = 0;
   automation_score += hasBooking ? 5 : 0;
   automation_score += hasPhone ? 3 : 0;
-  automation_score += totalForms > 0 ? 4 : 0;
+  automation_score += totalEnquiryForms > 0 ? 4 : 0;
   automation_score += round((formCoverage / 100) * 4);
   automation_score += round((buttonCoverage / 100) * 2);
   automation_score = clamp(automation_score, 0, 18);
@@ -462,6 +466,7 @@ function buildExecutiveSummary(params: {
   hasPhone: boolean;
   hasEmail: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
   totalPages: number;
   pagesWithNoForms: number;
   pagesWithNoButtons: number;
@@ -481,6 +486,7 @@ function buildExecutiveSummary(params: {
     hasPhone,
     hasEmail,
     totalForms,
+    totalEnquiryForms,
     totalPages,
     pagesWithNoForms,
     pagesWithNoButtons,
@@ -529,7 +535,7 @@ function buildExecutiveSummary(params: {
     hasPhone ? "phone" : null,
     hasEmail ? "email" : null,
     hasBooking ? "booking" : null,
-    totalForms > 0 ? "website forms" : null,
+    totalEnquiryForms > 0 ? "website forms" : null,
   ].filter(Boolean);
 
   const strongText =
@@ -561,6 +567,7 @@ function buildEngagementFlowMap(params: {
   hasPhone: boolean;
   hasBooking: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
   response_efficiency_score: number;
   crm_data_score: number;
   totalPages: number;
@@ -572,6 +579,7 @@ function buildEngagementFlowMap(params: {
     hasPhone,
     hasBooking,
     totalForms,
+    totalEnquiryForms,
     response_efficiency_score,
     crm_data_score,
     totalPages,
@@ -582,7 +590,7 @@ function buildEngagementFlowMap(params: {
   const channels: string[] = [];
   if (hasPhone) channels.push("phone");
   if (hasEmail) channels.push("email");
-  if (totalForms > 0) channels.push("website forms");
+  if (totalEnquiryForms > 0) channels.push("website forms");
   if (hasBooking) channels.push("booking path");
 
   const contactPath =
@@ -678,10 +686,12 @@ function buildAutomationOpportunityMatrix(params: {
   hasPhone: boolean;
   hasEmail: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
   response_efficiency_score: number;
   crm_data_score: number;
   automation_score: number;
   pagesWithNoForms: number;
+  pagesWithNoEnquiryForms: number;
   pagesWithNoButtons: number;
 }) {
   const {
@@ -690,10 +700,12 @@ function buildAutomationOpportunityMatrix(params: {
     hasPhone,
     hasEmail,
     totalForms,
+    totalEnquiryForms,
     response_efficiency_score,
     crm_data_score,
     automation_score,
     pagesWithNoForms,
+    pagesWithNoEnquiryForms,
     pagesWithNoButtons,
   } = params;
 
@@ -723,7 +735,7 @@ const isRetailOrMedia =
     };
   }
 
-  if (totalForms > 0) {
+  if (totalEnquiryForms > 0) {
     matrix.form_acknowledgement = {
       title: "Acknowledge enquiries straight away",
       description:
@@ -732,7 +744,7 @@ const isRetailOrMedia =
     };
   }
 
-  if (pagesWithNoForms > 0) {
+  if (pagesWithNoEnquiryForms > 0) {
     matrix.capture_coverage = {
       title: "Improve contact access across the site",
       description:
@@ -802,20 +814,24 @@ function buildImplementationBlueprint(params: {
   businessName: string;
   hasPhone: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
   crm_data_score: number;
   automation_score: number;
   hasBooking: boolean;
   pagesWithNoForms: number;
+  pagesWithNoEnquiryForms: number;
   pagesWithNoButtons: number;
 }) {
   const {
     businessName,
     hasPhone,
     totalForms,
+    totalEnquiryForms,
     crm_data_score,
     automation_score,
     hasBooking,
     pagesWithNoForms,
+    pagesWithNoEnquiryForms,
     pagesWithNoButtons,
   } = params;
 
@@ -825,7 +841,7 @@ function buildImplementationBlueprint(params: {
     "Start by cleaning up how enquiries are handled and making sure one person or process clearly owns the response."
   );
 
-  if (pagesWithNoForms > 0 || pagesWithNoButtons > 0) {
+  if (pagesWithNoEnquiryForms > 0 || pagesWithNoButtons > 0) {
     phases.push(
       "Then improve the visibility of contact options and make the next step clearer on weaker pages."
     );
@@ -837,7 +853,7 @@ function buildImplementationBlueprint(params: {
     );
   }
 
-  if (totalForms > 0) {
+  if (totalEnquiryForms > 0) {
     phases.push(
       "After that, add instant acknowledgement and a clearer follow-up path for website form enquiries."
     );
@@ -873,12 +889,20 @@ function buildDetectedStack(params: {
   hasEmail: boolean;
   hasBooking: boolean;
   totalForms: number;
+  totalEnquiryForms: number;
   crm_data_score: number;
 }) {
-  const { hasPhone, hasEmail, hasBooking, totalForms, crm_data_score } = params;
+  const {
+  hasPhone,
+  hasEmail,
+  hasBooking,
+  totalForms,
+  totalEnquiryForms,
+  crm_data_score,
+} = params;
 
   return {
-    website_form: totalForms > 0 ? "Detected" : "Not detected",
+    website_form: totalEnquiryForms > 0 ? "Detected" : "Not detected",
     live_chat: "Not detected",
     ai_chatbot: "Not detected",
     crm: crm_data_score >= 12 ? "Detected" : "Unclear",
@@ -1462,6 +1486,7 @@ $diagnostic("form").each((index, form) => {
         const metaDescription = useHtml ? extractMetaDescription(useHtml) : null;
         const h1Count = useHtml ? countTag(useHtml, "h1") : 0;
         const formCount = useHtml ? countTag(useHtml, "form") : 0;
+        const enquiryFormCount = useHtml ? countEnquiryForms(useHtml) : 0;
         const buttonCount = useHtml ? countTag(useHtml, "button") : 0;
         const emails = useHtml ? extractEmails(useHtml) : [];
         const phones = useHtml ? extractPhones(useHtml) : [];
@@ -1519,6 +1544,12 @@ $diagnostic("form").each((index, form) => {
             finding_value: String(formCount),
             finding_context: `Page contains ${formCount} form element(s).`,
           },
+          {
+  page_id: pageRow.id,
+  finding_type: "enquiry_form_count",
+  finding_value: String(enquiryFormCount),
+  finding_context: `Page contains ${enquiryFormCount} potential customer enquiry form(s).`,
+},
           {
             page_id: pageRow.id,
             finding_type: "button_count",
@@ -1634,6 +1665,9 @@ $diagnostic("form").each((index, form) => {
       (f) => f.finding_type === "booking_widget" && f.finding_value === "true"
     );
     const formFindings = findings.filter((f) => f.finding_type === "form_count");
+    const enquiryFormFindings = findings.filter(
+  (f) => f.finding_type === "enquiry_form_count"
+);
     const buttonFindings = findings.filter(
       (f) => f.finding_type === "button_count"
     );
@@ -1657,10 +1691,17 @@ $diagnostic("form").each((index, form) => {
       (sum, f) => sum + (parseInt(f.finding_value, 10) || 0),
       0
     );
+    const totalEnquiryForms = enquiryFormFindings.reduce(
+  (sum, f) => sum + (parseInt(f.finding_value, 10) || 0),
+  0
+);
 
     const pagesWithNoForms = formFindings.filter(
       (f) => (parseInt(f.finding_value, 10) || 0) === 0
     ).length;
+    const pagesWithNoEnquiryForms = enquiryFormFindings.filter(
+  (f) => (parseInt(f.finding_value, 10) || 0) === 0
+).length;
 
     const pagesWithNoButtons = buttonFindings.filter(
       (f) => (parseInt(f.finding_value, 10) || 0) === 0
@@ -1683,6 +1724,7 @@ $diagnostic("form").each((index, form) => {
     } = calculateScores({
       totalPages,
       pagesWithNoForms,
+      pagesWithNoEnquiryForms,
       pagesWithNoButtons,
       pagesWithNoH1,
       missingTitleCount: missingTitleFindings.length,
@@ -1691,6 +1733,7 @@ $diagnostic("form").each((index, form) => {
       hasPhone,
       hasBooking,
       totalForms,
+      totalEnquiryForms,
       totalButtons,
     });
 
@@ -1742,6 +1785,7 @@ $diagnostic("form").each((index, form) => {
       hasPhone,
       hasEmail,
       totalForms,
+      totalEnquiryForms,
       totalPages,
       pagesWithNoForms,
       pagesWithNoButtons,
@@ -1755,6 +1799,7 @@ $diagnostic("form").each((index, form) => {
       hasPhone,
       hasBooking,
       totalForms,
+      totalEnquiryForms,
       response_efficiency_score,
       crm_data_score,
       totalPages,
@@ -1781,10 +1826,12 @@ $diagnostic("form").each((index, form) => {
       hasPhone,
       hasEmail,
       totalForms,
+      totalEnquiryForms,
       response_efficiency_score,
       crm_data_score,
       automation_score,
       pagesWithNoForms,
+      pagesWithNoEnquiryForms,
       pagesWithNoButtons,
     });
 
@@ -1792,10 +1839,12 @@ $diagnostic("form").each((index, form) => {
       businessName,
       hasPhone,
       totalForms,
+      totalEnquiryForms,
       crm_data_score,
       automation_score,
       hasBooking,
       pagesWithNoForms,
+      pagesWithNoEnquiryForms,
       pagesWithNoButtons,
     });
 
@@ -1804,6 +1853,7 @@ $diagnostic("form").each((index, form) => {
       hasEmail,
       hasBooking,
       totalForms,
+      totalEnquiryForms,
       crm_data_score,
     });
 
