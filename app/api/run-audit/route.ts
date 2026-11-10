@@ -1382,6 +1382,27 @@ export async function POST(req: NextRequest) {
   totalForms: homepageFormCount,
   enquiryForms: homepageEnquiryFormCount,
 });
+
+const $diagnostic = cheerio.load(homepageHtml);
+
+$diagnostic("form").each((index, form) => {
+  const element = $diagnostic(form);
+
+  console.log("[Audit form details]", {
+    formNumber: index + 1,
+    formId: element.attr("id") || "",
+    formClass: element.attr("class") || "",
+    fieldTypes: element
+      .find("input, textarea, select")
+      .map((_, field) =>
+        $diagnostic(field).attr("type") ||
+        field.tagName ||
+        "unknown"
+      )
+      .get(),
+  });
+});
+
     const homepageButtonCount = countTag(homepageHtml, "button");
 
     const discoveredLinks = extractInternalLinks(homepageHtml, websiteUrl);
